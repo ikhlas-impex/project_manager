@@ -1,13 +1,21 @@
 "use client";
-import { useState } from "react";
-import { Bot, Check, KeyRound, Mail, Save, UserRound } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Bot, Check, KeyRound, Link2Off, Mail, Save, UserRound } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { useData } from "@/components/DataProvider";
 import { useToast } from "@/components/Toast";
 import { Avatar, PageHeader, Spinner } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
-import { sendEmail } from "@/lib/api";
+import { api, sendEmail } from "@/lib/api";
 import { AVATAR_COLORS } from "@/lib/format";
+
+const GMAIL_RESULTS = {
+  connected: ["Gmail connected — emails will now be sent from your account", "success"],
+  denied: ["Gmail connection was cancelled", "info"],
+  scope: ["Please tick “Send email on your behalf” when connecting Gmail", "error"],
+  expired: ["The Google sign-in link expired, please try again", "error"],
+  error: ["Couldn't connect Gmail. Please try again.", "error"],
+};
 
 export default function ProfilePage() {
   const { profile, refreshProfile } = useAuth();
@@ -23,6 +31,40 @@ export default function ProfilePage() {
   const [pw, setPw] = useState({ next: "", confirm: "" });
   const [pwBusy, setPwBusy] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [gBusy, setGBusy] = useState(false);
+
+  // Result of the Google redirect: /profile?gmail=connected
+  useEffect(() => {
+    const result = new URLSearchParams(window.location.search).get("gmail");
+    if (!result) return;
+    const [msg, type] = GMAIL_RESULTS[result] || GMAIL_RESULTS.error;
+    toast(msg, type);
+    window.history.replaceState(null, "", "/profile");
+  }, [toast]);
+
+  async function connectGmail() {
+    setGBusy(true);
+    try {
+      const { url } = await api("/api/google/connect", {});
+      window.location.href = url;
+    } catch (err) {
+      toast(err.message, "error");
+      setGBusy(false);
+    }
+  }
+
+  async function disconnectGmail() {
+    setGBusy(true);
+    try {
+      await api("/api/google/disconnect", {});
+      await refreshProfile();
+      toast("Gmail disconnected", "info");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setGBusy(false);
+    }
+  }
 
   async function saveProfile(e) {
     e.preventDefault();
@@ -115,14 +157,50 @@ export default function ProfilePage() {
             <button disabled={pwBusy} className="btn-primary">{pwBusy && <Spinner className="h-4 w-4 text-white" />} Update password</button>
           </form>
 
+          <div className="glass relative space-y-4 overflow-hidden p-5 sm:p-6">
+            <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-gradient-to-br from-rose-500/30 via-amber-400/20 to-sky-500/20 blur-2xl" />
+            <h2 className="section-title relative flex items-center gap-2"><GoogleIcon /> Gmail</h2>
+            {profile.gmail_address ? (
+              <div className="relative flex flex-wrap items-center gap-3 rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3">
+                <Check className="h-5 w-5 text-emerald-300" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{profile.gmail_address}</p>
+                  <p className="text-xs text-slate-400">Emails you send from TeamFlow come from this account.</p>
+                </div>
+                <button onClick={disconnectGmail} disabled={gBusy} className="btn-ghost btn-sm"><Link2Off className="h-3.5 w-3.5" /> Disconnect</button>
+              </div>
+            ) : integrations.google ? (
+              <div className="relative space-y-3">
+                <p className="text-sm text-slate-400">Connect your Google account so task notifications, summaries and reports are sent <span className="text-slate-200">from your own Gmail</span>.</p>
+                <button onClick={connectGmail} disabled={gBusy} className="btn w-full bg-white py-2.5 text-slate-800 shadow-lg hover:bg-slate-100">
+                  {gBusy ? <Spinner className="h-4 w-4" /> : <GoogleIcon />} Connect with Google
+                </button>
+                <p className="text-[11px] text-slate-500">TeamFlow only asks for permission to <em>send</em> email. It can&apos;t read your inbox.</p>
+              </div>
+            ) : (
+              <p className="relative text-xs text-slate-400">Google sign-in isn&apos;t configured on the server yet (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).</p>
+            )}
+          </div>
+
           <div className="glass space-y-3 p-5 sm:p-6">
             <h2 className="section-title">Integrations</h2>
-            <Integration icon={Mail} name="Gmail" on={integrations.email} hint="Task notifications & emailing summaries/reports" />
+            <Integration icon={Mail} name="Email sending" on={integrations.email} hint={profile.gmail_address ? `From ${profile.gmail_address}` : "Connect Gmail above to send from your account"} />
             <Integration icon={Bot} name="Google Gemini" on={integrations.ai} hint="AI descriptions, summary polish, reports & assistant" />
           </div>
         </div>
       </div>
     </>
+  );
+}
+
+function GoogleIcon() {
+  return (
+    <svg viewBox="0 0 48 48" className="h-4 w-4" aria-hidden>
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
+      <path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
+      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.3 0-9.7-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" />
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
+    </svg>
   );
 }
 

@@ -249,7 +249,7 @@ export default function TaskModal({ task: initial, defaults = {}, onClose }) {
               <a href={googleCalendarUrl(task)} target="_blank" rel="noreferrer" className="btn-ghost btn-sm">
                 <CalendarPlus className="h-3.5 w-3.5" /> Google Calendar
               </a>
-              <button type="button" onClick={openMail} disabled={!integrations.email || !others.length} title={integrations.email ? "" : "Gmail not configured"} className="btn-ghost btn-sm">
+              <button type="button" onClick={openMail} disabled={!integrations.email || !others.length} title={integrations.email ? "" : "Connect your Gmail in Profile first"} className="btn-ghost btn-sm">
                 <Mail className="h-3.5 w-3.5" /> Email
               </button>
             </div>

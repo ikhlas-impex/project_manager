@@ -1,6 +1,7 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "./AuthProvider";
 import TaskModal from "./TaskModal";
 
 const DataContext = createContext(null);
@@ -9,11 +10,12 @@ export const useData = () => useContext(DataContext);
 const ACTIVITY_DAYS = 120;
 
 export function DataProvider({ children }) {
+  const { profile: me } = useAuth();
   const [profiles, setProfiles] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [activity, setActivity] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [integrations, setIntegrations] = useState({ email: false, ai: false });
+  const [integrations, setIntegrations] = useState({ google: false, ai: false });
   const [modal, setModal] = useState(null); // { task } | { defaults }
   const timer = useRef();
 
@@ -55,7 +57,8 @@ export function DataProvider({ children }) {
     tasks,
     activity,
     loading,
-    integrations,
+    // email is sent from the user's own connected Gmail
+    integrations: { ...integrations, email: integrations.google && Boolean(me?.gmail_address) },
     reload,
     openTask: (task) => setModal({ task }),
     newTask: (defaults = {}) => setModal({ defaults }),

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { ChevronLeft, ChevronRight, MessageSquarePlus, RotateCcw, Send, Sparkles } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { useData } from "@/components/DataProvider";
@@ -141,7 +142,9 @@ export default function SummaryPage() {
                 </button>
               </>
             ) : (
-              <p className="text-xs text-slate-400">Gmail isn&apos;t configured on the server yet (GMAIL_USER / GMAIL_APP_PASSWORD).</p>
+              <p className="text-xs text-slate-400">
+                <Link href="/profile" className="text-violet-300 hover:underline">Connect your Gmail</Link> in Profile to email summaries from your own account.
+              </p>
             )}
           </div>
         </aside>

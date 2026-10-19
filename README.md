@@ -30,12 +30,17 @@ npm run seed                 # creates manager/manager@123 and user/user@123
 npm run dev                  # http://localhost:3000
 ```
 
-### 3. Gmail (for sending emails)
-1. Use a Gmail account with **2-Step Verification** turned on.
-2. Create an **App password** at https://myaccount.google.com/apppasswords.
-3. Set `GMAIL_USER` (that Gmail address) and `GMAIL_APP_PASSWORD` (the 16-character code).
-4. Each user adds their own Gmail in **Profile → Gmail for notifications**.
-
+### 3. Gmail: each user sends from their own account (Google OAuth)
+1. In [Google Cloud Console](https://console.cloud.google.com), create a project, then open **APIs & Services → Library** and enable the **Gmail API**.
+2. Under **Google Auth Platform → Branding / Audience**, set up the consent screen:
+   - Audience **Internal** if everyone uses your Google Workspace domain. No review is needed and connections don't expire.
+   - Otherwise choose **External** and add each person under **Test users**. In Testing mode, Google expires connections after 7 days.
+3. Under **Data Access**, add the scope `https://www.googleapis.com/auth/gmail.send`.
+4. Under **Clients → Create client → Web application**, add these **Authorized redirect URIs**:
+   - `https://YOUR-APP.vercel.app/api/google/callback`
+   - `http://localhost:3000/api/google/callback`
+5. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. `SUPABASE_SERVICE_ROLE_KEY` must also be set on the server.
+6. Each user opens **Profile → Connect with Google**. Emails they trigger are then sent from their own Gmail. The app asks only for the *send* permission and cannot read inboxes.
 ### 4. Google Gemini
 Get a key at https://aistudio.google.com/apikey and set `GEMINI_API_KEY`. `GEMINI_MODEL` defaults to `gemini-2.5-flash`.
 
@@ -50,7 +55,7 @@ Add entries to the `users` array in [scripts/seed.mjs](scripts/seed.mjs) and run
 ## Project structure
 ```
 app/(app)/       dashboard, tasks, calendar, summary, reports, assistant, profile
-app/api/         email (Gmail via nodemailer), ai (Gemini), status
+app/api/         email (Gmail API), google (connect Gmail), ai (Gemini), status
 components/      AppShell, TaskModal, TaskCard, providers, UI kit
 lib/             supabase client, task actions, daily summary + report builders
 supabase/        database schema, security rules, triggers
