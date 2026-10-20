@@ -98,11 +98,15 @@ export default function Dashboard() {
                   return (
                     <li key={a.id} className="flex gap-3">
                       <Avatar profile={profiles.find((p) => p.id === a.user_id)} size={28} />
-                      <div className="min-w-0 text-xs">
-                        <p className="text-slate-300">
-                          <span className="font-semibold text-white">{nameOf(profiles, a.user_id)}</span> · {a.message}
+                      <div className="min-w-0 flex-1 text-xs">
+                        <p className="break-words text-slate-300">
+                          <span className="font-semibold text-white">{nameOf(profiles, a.user_id)}</span> · {a.message.charAt(0).toUpperCase() + a.message.slice(1)}
                         </p>
-                        {t && <button onClick={() => openTask(t)} className="truncate text-violet-300 hover:underline">{t.title}</button>}
+                        {t && (
+                          <button onClick={() => openTask(t)} title={t.project ? `${t.project} – ${t.title}` : t.title} className="block w-full truncate text-left text-violet-300 hover:underline">
+                            {t.project || t.title}
+                          </button>
+                        )}
                         <p className="text-[10px] text-slate-500">{fmtDateTime(a.created_at)}</p>
                       </div>
                     </li>

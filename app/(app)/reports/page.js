@@ -1,17 +1,21 @@
 "use client";
 import { useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clock, Download, Hourglass, PlusCircle, Send, Sparkles, Target } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clock, Download, FolderKanban, Hourglass, PlusCircle, Send, Sparkles, Target } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { useData } from "@/components/DataProvider";
 import { useToast } from "@/components/Toast";
 import { CopyButton, PageHeader, RichText, Segmented, Spinner, StatCard } from "@/components/ui";
 import { computeReport, periodRange, toCSV } from "@/lib/reports";
+import { deliveryInfo, fmtDays } from "@/lib/projects";
+import ProjectTimeline from "@/components/ProjectTimeline";
+
+const fmtShort = (d) => new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 import { askAI, sendEmail } from "@/lib/api";
 import { PRIORITY, PRIORITY_ORDER, STATUS, STATUS_ORDER, fmtMinutes, fromDayKey, nameOf, profileName } from "@/lib/format";
 
 export default function ReportsPage() {
   const { profile: me } = useAuth();
-  const { tasks, activity, profiles, team, myDepartment, integrations } = useData();
+  const { tasks, activity, profiles, team, myDepartment, integrations, openTask } = useData();
   const toast = useToast();
   const isManager = me.role === "manager";
   const [kind, setKind] = useState("week");
@@ -21,13 +25,24 @@ export default function ReportsPage() {
   const [busy, setBusy] = useState(false);
   const [mailTo, setMailTo] = useState("");
 
-  const { start, end, label } = periodRange(kind, offset);
+  const earliest = useMemo(
+    () => tasks.reduce((min, t) => Math.min(min, new Date(t.start_at || t.created_at).getTime()), Date.now()),
+    [tasks]
+  );
+  const { start, end, label } = periodRange(kind, offset, earliest);
   const r = useMemo(
     () => computeReport({ tasks, activity, profiles, members: team, start, end, userId: who || null }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tasks, activity, profiles, kind, offset, who]
+    [tasks, activity, profiles, kind, offset, who, earliest]
   );
   const days = Object.entries(r.perDay);
+  // chart keys are YYYY-MM-DD (days) or YYYY-MM (months)
+  const keyLabel = (k, long) =>
+    r.bucket === "month"
+      ? fromDayKey(`${k}-01`).toLocaleDateString(undefined, { month: "short", year: "2-digit" })
+      : fromDayKey(k).toLocaleDateString(undefined, long ? { weekday: "short", day: "numeric", month: "short" } : { day: "numeric", month: "short" });
+  const delivered = r.projects.filter((p) => p.deliveredInPeriod);
+  const openProject = (p) => openTask([...p.tasks].sort((a, b) => new Date(b.completed_at || b.created_at) - new Date(a.completed_at || a.created_at))[0]);
   const maxDay = Math.max(1, ...days.map(([, v]) => Math.max(v.completed, v.created)));
   const scopeName = who ? nameOf(profiles, who) : myDepartment?.name || "Team";
 
@@ -40,13 +55,17 @@ export default function ReportsPage() {
         scope: scopeName, created: r.created, completed: r.completed, completionRatePct: r.completionRate,
         onTimePct: r.onTimeRate, overdueOpen: r.overdue, avgCompletionHours: +r.avgHours.toFixed(1),
         totalWaitingHours: +(r.waitMins / 60).toFixed(1), byPriority: r.byPriority, byStatus: r.byStatus, people: r.people,
+        projects: r.projects.map((p) => ({
+          name: p.name, started: p.start.toISOString().slice(0, 10), delivered: p.delivered?.toISOString().slice(0, 10) || null,
+          durationDays: p.durationDays, delivery: deliveryInfo(p).label, tasksDone: `${p.done}/${p.total}`,
+        })),
       };
       const slim = r.activeTasks.slice(0, 80).map((t) => ({
         title: t.title, status: t.status, priority: t.priority, assignee: nameOf(profiles, t.assigned_to),
         due: t.due_at, completed: t.completed_at, waitingMinutes: t.waiting_total_minutes,
         waitingOn: t.waiting_on ? nameOf(profiles, t.waiting_on) : undefined, waitingReason: t.waiting_reason || undefined,
       }));
-      setAi(await askAI("report", { period: `${kind === "week" ? "the week" : "the month"} ${label}`, stats, tasks: slim }));
+      setAi(await askAI("report", { period: { week: "the week", month: "the month", year: "the year" }[kind] ? `${{ week: "the week", month: "the month", year: "the year" }[kind]} ${label}` : label, stats, tasks: slim }));
     } catch (err) {
       toast(err.message, "error");
     } finally {
@@ -61,6 +80,11 @@ export default function ReportsPage() {
       `On-time: ${r.onTimeRate ?? "—"}% · Overdue: ${r.overdue} · Avg time to complete: ${r.avgHours.toFixed(1)}h · Waiting: ${fmtMinutes(r.waitMins)}`,
       "",
       ...r.people.map((p) => `• ${p.name}: ${p.completed} done, ${p.open} open, ${p.waiting} waiting, ${p.overdue} overdue`),
+      "",
+      "Projects:",
+      ...r.projects.map(
+        (p) => `🔹 ${p.name}: ${fmtShort(p.start)} → ${p.delivered ? fmtShort(p.delivered) : "ongoing"} (${fmtDays(p.durationDays)}) · ${deliveryInfo(p).label}`
+      ),
       "",
       "Completed tasks:",
       ...r.completedTasks.map((t) => `✓ ${t.title} (${nameOf(profiles, t.assigned_to)})`),
@@ -87,12 +111,18 @@ export default function ReportsPage() {
 
   return (
     <>
-      <PageHeader title="Reports" subtitle="Weekly & monthly performance, with AI analysis.">
-        <div className="w-44"><Segmented value={kind} onChange={(v) => { setKind(v); setOffset(0); setAi(""); }} options={[{ value: "week", label: "Weekly" }, { value: "month", label: "Monthly" }]} /></div>
+      <PageHeader title="Reports" subtitle="Performance and project delivery by week, month, year or all time, with AI analysis.">
+        <div className="w-80 max-w-full">
+          <Segmented
+            value={kind}
+            onChange={(v) => { setKind(v); setOffset(0); setAi(""); }}
+            options={[{ value: "week", label: "Weekly" }, { value: "month", label: "Monthly" }, { value: "year", label: "Yearly" }, { value: "all", label: "All time" }]}
+          />
+        </div>
         <div className="glass flex items-center gap-1 rounded-xl p-1">
-          <button onClick={() => reset(setOffset)(offset - 1)} className="rounded-lg p-2 hover:bg-white/10" aria-label="Previous period"><ChevronLeft className="h-4 w-4" /></button>
+          <button onClick={() => reset(setOffset)(offset - 1)} disabled={kind === "all"} className="rounded-lg p-2 hover:bg-white/10 disabled:opacity-30" aria-label="Previous period"><ChevronLeft className="h-4 w-4" /></button>
           <span className="min-w-40 text-center text-sm font-semibold">{label}</span>
-          <button onClick={() => reset(setOffset)(offset + 1)} disabled={offset >= 0} className="rounded-lg p-2 hover:bg-white/10 disabled:opacity-30" aria-label="Next period"><ChevronRight className="h-4 w-4" /></button>
+          <button onClick={() => reset(setOffset)(offset + 1)} disabled={offset >= 0 || kind === "all"} className="rounded-lg p-2 hover:bg-white/10 disabled:opacity-30" aria-label="Next period"><ChevronRight className="h-4 w-4" /></button>
         </div>
         {isManager && (
           <select className="input w-auto" value={who} onChange={(e) => reset(setWho)(e.target.value)} aria-label="Report scope">
@@ -112,7 +142,7 @@ export default function ReportsPage() {
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         <section className="glass p-5 lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="section-title">Daily throughput</h2>
+            <h2 className="section-title">{r.bucket === "month" ? "Monthly" : "Daily"} throughput</h2>
             <div className="flex gap-3 text-xs text-slate-400">
               <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-emerald-400" />Completed</span>
               <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-sky-400/60" />Created</span>
@@ -126,14 +156,14 @@ export default function ReportsPage() {
                   <div className="w-full max-w-4 rounded-t bg-sky-400/50 transition-all" style={{ height: `${(v.created / maxDay) * 100}%` }} />
                 </div>
                 <span className="pointer-events-none absolute -top-8 left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-black/80 px-2 py-1 text-[10px] group-hover:block">
-                  {fromDayKey(k).toLocaleDateString(undefined, { day: "numeric", month: "short" })}: {v.completed} done · {v.created} new
+                  {keyLabel(k, true)}: {v.completed} done · {v.created} new
                 </span>
               </div>
             ))}
           </div>
           <div className="mt-2 flex justify-between text-[10px] text-slate-500">
-            <span>{fromDayKey(days[0][0]).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span>
-            <span>{fromDayKey(days[days.length - 1][0]).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span>
+            <span>{keyLabel(days[0][0])}</span>
+            <span>{keyLabel(days[days.length - 1][0])}</span>
           </div>
         </section>
 
@@ -148,6 +178,63 @@ export default function ReportsPage() {
           </div>
         </section>
       </div>
+
+      {/* ---------- Projects: timeline + delivery per project ---------- */}
+      <section className="glass mt-6 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 p-4">
+          <h2 className="section-title flex items-center gap-2"><FolderKanban className="h-4 w-4 text-violet-300" /> Projects in this period</h2>
+          <p className="text-xs text-slate-400">
+            {r.projects.length} project{r.projects.length === 1 ? "" : "s"} · {delivered.length} delivered in period
+          </p>
+        </div>
+        {r.projects.length ? (
+          <>
+            <ProjectTimeline projects={r.projects} from={kind === "all" ? undefined : start} to={kind === "all" ? undefined : new Date(end - 1)} onOpen={openProject} />
+            <div className="overflow-x-auto border-t border-white/10">
+              <table className="w-full min-w-[760px] text-sm">
+                <thead>
+                  <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wide text-slate-400">
+                    <th className="px-4 py-3 font-medium">Project</th>
+                    <th className="px-4 py-3 font-medium">Tasks</th>
+                    <th className="px-4 py-3 font-medium">Started</th>
+                    <th className="px-4 py-3 font-medium">Delivered</th>
+                    <th className="px-4 py-3 font-medium">Time taken</th>
+                    <th className="px-4 py-3 font-medium">Delivery</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {r.projects.map((p) => {
+                    const info = deliveryInfo(p);
+                    return (
+                      <tr key={p.name} onClick={() => openProject(p)} className="cursor-pointer transition hover:bg-white/5">
+                        <td className="max-w-xs px-4 py-3">
+                          <span className="block truncate font-medium text-slate-100" title={p.name}>{p.name}</span>
+                          <span className="block text-[11px] text-slate-500">{p.assignees.map((id) => nameOf(profiles, id)).join(", ")}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-slate-200">{p.done}/{p.total}</span>
+                          <span className="mt-1 block h-1 w-16 overflow-hidden rounded-full bg-white/10">
+                            <span className="block h-full rounded-full bg-emerald-400" style={{ width: `${(p.done / p.total) * 100}%` }} />
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-300">{fmtShort(p.start)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-300">
+                          {p.delivered ? fmtShort(p.delivered) : <span className="text-slate-500">—</span>}
+                          {p.due && <span className="block text-[10px] text-slate-500">deadline {fmtShort(p.due)}</span>}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-300">{fmtDays(p.durationDays)}</td>
+                        <td className="px-4 py-3"><span className={`chip ${info.chip}`}>{info.label}</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <p className="p-8 text-center text-sm text-slate-500">No project work in this period.</p>
+        )}
+      </section>
 
       <section className="glass mt-6 overflow-x-auto">
         <table className="w-full min-w-[560px] text-sm">
