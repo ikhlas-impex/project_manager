@@ -23,6 +23,7 @@ import {
   Users,
   Workflow,
   XCircle,
+  Trash2,
 } from "lucide-react";
 import { Avatar, Spinner } from "@/components/ui";
 import { formatDate } from "@/lib/format";
@@ -167,6 +168,28 @@ export default function AdminPage() {
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Role update failed");
       showToast(`Updated role for ${name} to ${newRole}.`, "success");
+      fetchAdminData();
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      setActionBusy(null);
+    }
+  }
+
+  async function removeUser(userId, name) {
+    if (!window.confirm(`Are you sure you want to remove ${name}? This will delete their account.`)) {
+      return;
+    }
+    setActionBusy(userId);
+    try {
+      const res = await fetch("/api/admin/delete-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Failed to remove user");
+      showToast(`User ${name} removed.`, "info");
       fetchAdminData();
     } catch (err) {
       showToast(err.message, "error");
@@ -584,23 +607,33 @@ export default function AdminPage() {
                               )}
                             </td>
                             <td className="px-5 py-3.5 text-right">
-                              {isManager ? (
+                              <div className="flex items-center justify-end gap-1.5">
+                                {isManager ? (
+                                  <button
+                                    disabled={busy}
+                                    onClick={() => switchRole(u.id, "employee", u.full_name)}
+                                    className="btn-ghost btn-sm text-[11px] hover:text-amber-300"
+                                  >
+                                    {busy ? <Spinner className="h-3 w-3" /> : "Demote to Employee"}
+                                  </button>
+                                ) : (
+                                  <button
+                                    disabled={busy}
+                                    onClick={() => switchRole(u.id, "manager", u.full_name)}
+                                    className="btn-ghost btn-sm text-[11px] text-violet-300 hover:text-violet-200 hover:bg-violet-500/10"
+                                  >
+                                    {busy ? <Spinner className="h-3 w-3" /> : "Promote to Manager"}
+                                  </button>
+                                )}
                                 <button
                                   disabled={busy}
-                                  onClick={() => switchRole(u.id, "employee", u.full_name)}
-                                  className="btn-ghost btn-sm text-[11px] hover:text-amber-300"
+                                  onClick={() => removeUser(u.id, u.full_name)}
+                                  className="btn-ghost btn-sm p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10"
+                                  title={`Remove ${u.full_name}`}
                                 >
-                                  {busy ? <Spinner className="h-3 w-3" /> : "Demote to Employee"}
+                                  <Trash2 className="h-3.5 w-3.5" />
                                 </button>
-                              ) : (
-                                <button
-                                  disabled={busy}
-                                  onClick={() => switchRole(u.id, "manager", u.full_name)}
-                                  className="btn-ghost btn-sm text-[11px] text-violet-300 hover:text-violet-200 hover:bg-violet-500/10"
-                                >
-                                  {busy ? <Spinner className="h-3 w-3" /> : "Promote to Manager"}
-                                </button>
-                              )}
+                              </div>
                             </td>
                           </tr>
                         );

@@ -10,10 +10,8 @@ if (!url || !key) {
 const admin = createClient(url, key, { auth: { persistSession: false } });
 
 const DOMAIN = "teamflow.local"; // must match LOGIN_DOMAIN in lib/supabase.js
-const users = [
-  { username: "manager", password: "manager@123", role: "manager", full_name: "Manager" },
-  { username: "user", password: "user@123", role: "employee", full_name: "Employee" },
-];
+// Default accounts list (cleared per user request; accounts are managed via Google Workspace Auth and /admin)
+const users = [];
 
 for (const u of users) {
   const { error } = await admin.auth.admin.createUser({
