@@ -1,8 +1,8 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart3, Bot, CalendarDays, ClipboardList, Clock, LayoutDashboard, LogOut, Plus, ScrollText, UserCog, Workflow } from "lucide-react";
+import { BarChart3, Bot, CalendarDays, ClipboardList, Clock, LayoutDashboard, LogOut, Plus, ScrollText, Sparkles, UserCog, Workflow } from "lucide-react";
 import { useAuth } from "./AuthProvider";
 import { DataProvider, useData } from "./DataProvider";
 import { Avatar, Spinner } from "./ui";
@@ -47,15 +47,30 @@ export default function AppShell({ children }) {
 }
 
 function Shell({ children }) {
-  const { profile, signOut, session } = useAuth();
-  const { newTask, loading } = useData();
+  const { profile, signOut, session, refreshProfile } = useAuth();
+  const { newTask, loading, reload } = useData();
   const path = usePathname();
+  const [justApproved, setJustApproved] = useState(false);
 
   const isPendingManager =
-    session?.user?.user_metadata?.manager_request_status === "pending" && profile?.role !== "manager";
+    profile?.role !== "manager" &&
+    (session?.user?.user_metadata?.manager_request_status === "pending" ||
+      profile?.manager_request_status === "pending");
+
+  useEffect(() => {
+    const onApproved = async () => {
+      setJustApproved(true);
+      if (reload) reload();
+      setTimeout(() => setJustApproved(false), 8000);
+    };
+
+    window.addEventListener("teamflow:role-approved", onApproved);
+    return () => window.removeEventListener("teamflow:role-approved", onApproved);
+  }, [reload]);
 
   return (
     <div className="min-h-screen md:pl-64">
+
       {/* Sidebar (desktop) */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-white/10 bg-white/[0.03] p-4 backdrop-blur-2xl md:flex">
         <Link href="/dashboard" className="mb-6 flex items-center gap-2.5 px-2 pt-1">
@@ -117,6 +132,28 @@ function Shell({ children }) {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 md:pb-10 lg:px-10 lg:pt-10">
+        {justApproved && (
+          <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/40 bg-emerald-500/15 p-4 text-xs text-emerald-100 shadow-xl shadow-emerald-900/30 animate-in fade-in slide-in-from-top-4">
+            <div className="flex items-center gap-3">
+              <span className="grid h-8 w-8 place-items-center rounded-xl bg-emerald-500 text-white shadow-md">
+                <Sparkles className="h-4 w-4" />
+              </span>
+              <div>
+                <p className="font-bold text-sm text-white">Manager Access Approved!</p>
+                <p className="text-emerald-200/90 text-xs mt-0.5">
+                  You now have full manager administrative authority across TeamFlow. All team tasks and management controls are active.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setJustApproved(false)}
+              className="text-emerald-300 hover:text-white px-2 py-1 text-xs"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
         {isPendingManager && (
           <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
             <div className="flex items-center gap-2">
@@ -130,6 +167,7 @@ function Shell({ children }) {
             </Link>
           </div>
         )}
+
 
         {loading ? (
           <div className="grid h-64 place-items-center"><Spinner className="h-7 w-7" /></div>

@@ -6,6 +6,7 @@ import {
   Clock,
   Link2Off,
   Mail,
+  RefreshCw,
   Save,
   ShieldCheck,
   UserRound,
@@ -120,9 +121,31 @@ export default function ProfilePage() {
     }
   }
 
+  async function checkRoleStatus() {
+    setRoleBusy(true);
+    try {
+      const res = await fetch("/api/role/status");
+      const data = await res.json();
+      await refreshProfile();
+      if (data.role === "manager" || data.is_manager) {
+        toast("🎉 Manager access approved! Manager features activated.", "success");
+      } else {
+        toast("Your manager request is still awaiting administrator review.", "info");
+      }
+    } catch {
+      toast("Could not check status right now.", "error");
+    } finally {
+      setRoleBusy(false);
+    }
+  }
+
   const preview = { ...profile, ...form };
   const emailAddress = profile.notify_email || profile.gmail_address || session?.user?.email || "";
-  const isPendingManager = session?.user?.user_metadata?.manager_request_status === "pending";
+  const isPendingManager =
+    profile.role !== "manager" &&
+    (session?.user?.user_metadata?.manager_request_status === "pending" ||
+      profile?.manager_request_status === "pending");
+
 
   return (
     <>
@@ -214,7 +237,7 @@ export default function ProfilePage() {
                 You have administrative manager authority to assign tasks, supervise deadlines, and access team analytics.
               </p>
             ) : isPendingManager ? (
-              <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3.5 text-xs text-amber-200 space-y-1.5">
+              <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-xs text-amber-200 space-y-2.5">
                 <div className="flex items-center gap-2 font-semibold">
                   <Clock className="h-4 w-4 text-amber-400" />
                   Manager Request Pending Approval
@@ -222,6 +245,17 @@ export default function ProfilePage() {
                 <p className="text-slate-300">
                   Your upgrade request to become a Manager is currently awaiting review by the administrator on the Admin Portal.
                 </p>
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    disabled={roleBusy}
+                    onClick={checkRoleStatus}
+                    className="btn-ghost btn-sm text-xs text-amber-300 hover:text-white border border-amber-400/30 gap-1.5"
+                  >
+                    {roleBusy ? <Spinner className="h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                    Check Approval Status
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="space-y-3">
