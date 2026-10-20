@@ -17,7 +17,7 @@ export default function SummaryPage() {
   const toast = useToast();
 
   const [day, setDay] = useState(dayKey(new Date()));
-  const [who, setWho] = useState(me.id); // user id or "team"
+  const [who, setWho] = useState(me?.id || "team"); // user id or "team"
   const [text, setText] = useState("");
   const [edited, setEdited] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
@@ -25,6 +25,12 @@ export default function SummaryPage() {
   const [sending, setSending] = useState(false);
   const [noteTask, setNoteTask] = useState("");
   const [note, setNote] = useState("");
+
+  useEffect(() => {
+    if (me?.id && who === "team") {
+      setWho(me.id);
+    }
+  }, [me?.id]);
 
   const generated = useMemo(
     () => buildDailySummary({ date: fromDayKey(day), tasks, activity, profiles, userId: who === "team" ? null : who }),
@@ -37,9 +43,9 @@ export default function SummaryPage() {
   }, [generated, edited]);
 
   useEffect(() => {
-    const manager = profiles.find((p) => p.role === "manager" && p.id !== me.id);
+    const manager = profiles.find((p) => p.role === "manager" && p.id !== me?.id);
     setMailTo(manager?.notify_email || "");
-  }, [profiles, me.id]);
+  }, [profiles, me?.id]);
 
   const shift = (n) => {
     const d = fromDayKey(day);

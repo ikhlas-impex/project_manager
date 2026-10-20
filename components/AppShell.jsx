@@ -6,6 +6,7 @@ import { BarChart3, Bot, CalendarDays, ClipboardList, Clock, LayoutDashboard, Lo
 import { useAuth } from "./AuthProvider";
 import { DataProvider, useData } from "./DataProvider";
 import { Avatar, Spinner } from "./ui";
+import AIUsageMeter from "./AIUsageMeter";
 import { profileName } from "@/lib/format";
 
 const NAV = [
@@ -126,12 +127,17 @@ function Shell({ children }) {
           <Workflow className="h-5 w-5 text-violet-300" /> TeamFlow
         </span>
         <div className="flex items-center gap-2">
+          <AIUsageMeter />
           <button onClick={() => newTask()} className="btn-primary btn-sm"><Plus className="h-4 w-4" /> Task</button>
           <Link href="/profile"><Avatar profile={profile} size={30} /></Link>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 md:pb-10 lg:px-10 lg:pt-10">
+      <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 md:pb-10 lg:px-10 lg:pt-6">
+        <div className="mb-4 hidden justify-end md:flex">
+          <AIUsageMeter />
+        </div>
+
         {justApproved && (
           <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/40 bg-emerald-500/15 p-4 text-xs text-emerald-100 shadow-xl shadow-emerald-900/30 animate-in fade-in slide-in-from-top-4">
             <div className="flex items-center gap-3">
@@ -162,7 +168,7 @@ function Shell({ children }) {
                 Your request to become a <strong>Manager</strong> is awaiting administrator approval. You currently have standard Employee access.
               </span>
             </div>
-            <Link href="/profile" className="shrink-0 underline hover:text-white">
+            <Link href="/choose-role" className="shrink-0 underline hover:text-white">
               View Status
             </Link>
           </div>

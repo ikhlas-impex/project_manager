@@ -43,8 +43,15 @@ npm run dev                  # http://localhost:3000
    - `http://localhost:3000/api/google/callback`
 5. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. `SUPABASE_SERVICE_ROLE_KEY` must also be set on the server.
 6. Each user opens **Profile → Connect with Google**. Emails they trigger are then sent from their own Gmail. The app asks only for the *send* permission and cannot read inboxes.
-### 4. Google Gemini
-Get a key at https://aistudio.google.com/apikey and set `GEMINI_API_KEY`. `GEMINI_MODEL` defaults to `gemini-2.5-flash`.
+### 4. Google Gemini (Supabase Edge Function)
+AI runs in the edge function [supabase/functions/gemini](supabase/functions/gemini/index.ts). API keys and models are stored in the database, so they can be changed from the admin page without redeploying.
+
+1. Run [supabase/migrations/004_ai_gateway.sql](supabase/migrations/004_ai_gateway.sql) in the SQL Editor.
+2. Deploy the function: `npx supabase functions deploy gemini --project-ref <your-project-ref> --use-api`. It needs no secrets, because Supabase provides the URL and service key automatically.
+3. Open **/admin → AI (Gemini)**:
+   - **API keys**: paste a key from https://aistudio.google.com/apikey and the app verifies it. Add several keys and they are used in order. When one hits its limit, it's paused until the quota resets (midnight Pacific) and the next key takes over. Free-tier quota is **per Google Cloud project**, so extra keys only add quota if each comes from a different project.
+   - **Models**: an ordered fallback chain. If a model is retired, overloaded, too slow (40s) or out of quota, the next one answers. Use **Test** to check a model, and **Show models my key can use** to add new ones.
+   - **RPM / RPD**: free-tier limits per model. Google no longer publishes these, so copy yours from https://aistudio.google.com/rate-limit. They drive the usage meter shown at the top of the app.
 
 ### 5. Deploy to Vercel
 1. Push this repo to GitHub, then **Import** it at [vercel.com/new](https://vercel.com/new).
@@ -57,7 +64,8 @@ Add entries to the `users` array in [scripts/seed.mjs](scripts/seed.mjs) and run
 ## Project structure
 ```
 app/(app)/       dashboard, tasks, calendar, summary, reports, assistant, profile
-app/api/         email (Gmail API), google (connect Gmail), ai (Gemini), status
+app/api/         email (Gmail API), google (connect Gmail), admin/ai (Gemini settings), status
+supabase/functions/gemini   AI gateway (Gemini calls, key/model failover, usage)
 components/      AppShell, TaskModal, TaskCard, providers, UI kit
 lib/             supabase client, task actions, daily summary + report builders
 supabase/        database schema, security rules, triggers

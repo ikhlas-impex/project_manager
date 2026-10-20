@@ -18,6 +18,7 @@ import {
   Search,
   Shield,
   ShieldAlert,
+  Sparkles,
   ShieldCheck,
   UserCheck,
   Users,
@@ -26,6 +27,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Avatar, Spinner } from "@/components/ui";
+import AdminAI from "@/components/AdminAI";
 import { formatDate } from "@/lib/format";
 
 export default function AdminPage() {
@@ -395,7 +397,7 @@ export default function AdminPage() {
         </div>
 
         {/* Navigation Tabs */}
-        <div className="mt-8 flex gap-2 border-b border-white/10 pb-2">
+        <div className="mt-8 flex flex-wrap gap-2 border-b border-white/10 pb-2">
           <button
             onClick={() => setActiveTab("requests")}
             className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${
@@ -436,7 +438,22 @@ export default function AdminPage() {
             <Globe className="h-4 w-4 text-emerald-400" />
             <span>Domain & Security</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab("ai")}
+            className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${
+              activeTab === "ai"
+                ? "bg-white/10 text-white shadow-inner ring-1 ring-white/10"
+                : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+            }`}
+          >
+            <Sparkles className="h-4 w-4 text-fuchsia-400" />
+            <span>AI (Gemini)</span>
+          </button>
         </div>
+
+        {/* Tab 4: GEMINI KEYS, MODELS & USAGE */}
+        {activeTab === "ai" && <AdminAI notify={showToast} />}
 
         {/* Tab 1: MANAGER APPROVAL REQUESTS */}
         {activeTab === "requests" && (

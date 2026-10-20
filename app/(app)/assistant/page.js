@@ -23,7 +23,9 @@ export default function AssistantPage() {
   const [busy, setBusy] = useState(false);
   const endRef = useRef(null);
 
-  useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), [messages, busy]);
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, busy]);
 
   async function ask(text) {
     const q = (text ?? input).trim();

@@ -1,16 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import {
-  Bot,
-  Check,
-  Clock,
-  Link2Off,
-  Mail,
-  RefreshCw,
-  Save,
-  ShieldCheck,
-  UserRound,
-} from "lucide-react";
+import { Bot, Check, Link2Off, Mail, Save, UserRound } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { useData } from "@/components/DataProvider";
 import { useToast } from "@/components/Toast";
@@ -37,8 +27,13 @@ export default function ProfilePage() {
     avatar_color: profile?.avatar_color || AVATAR_COLORS[0],
   });
   const [saving, setSaving] = useState(false);
-  const [roleBusy, setRoleBusy] = useState(false);
   const [gBusy, setGBusy] = useState(false);
+
+  const notify = (msg, type = "success") => {
+    if (typeof toast === "function") {
+      toast(msg, type);
+    }
+  };
 
   useEffect(() => {
     if (profile) {
@@ -51,14 +46,13 @@ export default function ProfilePage() {
 
   // Result of the Google redirect: /profile?gmail=connected
   useEffect(() => {
+    if (typeof window === "undefined") return;
     const result = new URLSearchParams(window.location.search).get("gmail");
     if (!result) return;
     const [msg, type] = GMAIL_RESULTS[result] || GMAIL_RESULTS.error;
-    if (typeof toast === "function") {
-      toast(msg, type);
-    }
+    notify(msg, type);
     window.history.replaceState(null, "", "/profile");
-  }, [toast]);
+  }, []);
 
   if (!profile) {
     return (
@@ -72,9 +66,11 @@ export default function ProfilePage() {
     setGBusy(true);
     try {
       const { url } = await api("/api/google/connect", {});
-      window.location.href = url;
+      if (url) {
+        window.location.href = url;
+      }
     } catch (err) {
-      toast(err.message, "error");
+      notify(err.message || "Failed to initiate Gmail connection", "error");
       setGBusy(false);
     }
   }
@@ -83,10 +79,10 @@ export default function ProfilePage() {
     setGBusy(true);
     try {
       await api("/api/google/disconnect", {});
-      await refreshProfile();
-      toast("Gmail disconnected", "info");
+      if (typeof refreshProfile === "function") await refreshProfile();
+      notify("Gmail disconnected", "info");
     } catch (err) {
-      toast(err.message, "error");
+      notify(err.message || "Failed to disconnect Gmail", "error");
     } finally {
       setGBusy(false);
     }
@@ -94,64 +90,36 @@ export default function ProfilePage() {
 
   async function saveProfile(e) {
     e.preventDefault();
+    if (!profile?.id) return;
     setSaving(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        full_name: form.full_name.trim() || profile.username,
-        avatar_color: form.avatar_color,
-      })
-      .eq("id", profile.id);
-    setSaving(false);
-    if (error) return toast(error.message, "error");
-    await Promise.all([refreshProfile(), reload()]);
-    toast("Profile saved");
-  }
-
-  async function requestManagerRole() {
-    setRoleBusy(true);
     try {
-      await api("/api/role/select", { role: "manager" });
-      await refreshProfile();
-      toast("Manager request submitted to Admin for approval!", "info");
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          full_name: form.full_name.trim() || profile.username || "User",
+          avatar_color: form.avatar_color,
+        })
+        .eq("id", profile.id);
+      if (error) throw error;
+      if (typeof refreshProfile === "function") await refreshProfile();
+      if (typeof reload === "function") await reload();
+      notify("Profile saved", "success");
     } catch (err) {
-      toast(err.message, "error");
+      notify(err.message || "Failed to save profile", "error");
     } finally {
-      setRoleBusy(false);
+      setSaving(false);
     }
   }
 
-  async function checkRoleStatus() {
-    setRoleBusy(true);
-    try {
-      const res = await fetch("/api/role/status");
-      const data = await res.json();
-      await refreshProfile();
-      if (data.role === "manager" || data.is_manager) {
-        toast("🎉 Manager access approved! Manager features activated.", "success");
-      } else {
-        toast("Your manager request is still awaiting administrator review.", "info");
-      }
-    } catch {
-      toast("Could not check status right now.", "error");
-    } finally {
-      setRoleBusy(false);
-    }
-  }
-
-  const preview = { ...profile, ...form };
-  const emailAddress = profile.notify_email || profile.gmail_address || session?.user?.email || "";
-  const isPendingManager =
-    profile.role !== "manager" &&
-    (session?.user?.user_metadata?.manager_request_status === "pending" ||
-      profile?.manager_request_status === "pending");
-
+  const preview = { ...(profile || {}), ...form };
+  const emailAddress =
+    profile.notify_email || profile.gmail_address || session?.user?.email || "";
 
   return (
     <>
       <PageHeader
         title="Profile & settings"
-        subtitle={`Signed in as @${profile.username} · ${profile.role}`}
+        subtitle={`Signed in as @${profile?.username || "user"} · ${profile?.role || "employee"}`}
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -213,68 +181,8 @@ export default function ProfilePage() {
           </div>
         </form>
 
-        {/* Right Column: Role & Integrations */}
+        {/* Right Column: Integrations */}
         <div className="space-y-6">
-          {/* Workspace Role Card */}
-          <div className="glass space-y-4 p-5 sm:p-6">
-            <div className="flex items-center justify-between">
-              <h2 className="section-title flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-violet-300" /> Workspace Role
-              </h2>
-              <span
-                className={`chip capitalize ${
-                  profile.role === "manager"
-                    ? "bg-violet-400/10 text-violet-300 ring-violet-400/30"
-                    : "bg-emerald-400/10 text-emerald-300 ring-emerald-400/30"
-                }`}
-              >
-                {profile.role}
-              </span>
-            </div>
-
-            {profile.role === "manager" ? (
-              <p className="text-xs text-slate-400">
-                You have administrative manager authority to assign tasks, supervise deadlines, and access team analytics.
-              </p>
-            ) : isPendingManager ? (
-              <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-xs text-amber-200 space-y-2.5">
-                <div className="flex items-center gap-2 font-semibold">
-                  <Clock className="h-4 w-4 text-amber-400" />
-                  Manager Request Pending Approval
-                </div>
-                <p className="text-slate-300">
-                  Your upgrade request to become a Manager is currently awaiting review by the administrator on the Admin Portal.
-                </p>
-                <div className="pt-1">
-                  <button
-                    type="button"
-                    disabled={roleBusy}
-                    onClick={checkRoleStatus}
-                    className="btn-ghost btn-sm text-xs text-amber-300 hover:text-white border border-amber-400/30 gap-1.5"
-                  >
-                    {roleBusy ? <Spinner className="h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                    Check Approval Status
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-xs text-slate-400">
-                  You are currently an <strong>Employee</strong>. If you need authority to manage projects and assign tasks to teammates, you can request manager access.
-                </p>
-                <button
-                  type="button"
-                  disabled={roleBusy}
-                  onClick={requestManagerRole}
-                  className="btn-ghost btn-sm text-violet-300 hover:text-violet-200 hover:bg-violet-500/10 gap-1.5"
-                >
-                  {roleBusy ? <Spinner className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-                  Request Upgrade to Manager
-                </button>
-              </div>
-            )}
-          </div>
-
           {/* Gmail Sending Connection */}
           <div className="glass relative space-y-4 overflow-hidden p-5 sm:p-6">
             <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-gradient-to-br from-rose-500/30 via-amber-400/20 to-sky-500/20 blur-2xl" />
@@ -298,7 +206,7 @@ export default function ProfilePage() {
                   <Link2Off className="h-3.5 w-3.5" /> Disconnect
                 </button>
               </div>
-            ) : integrations.google ? (
+            ) : integrations?.google ? (
               <div className="relative space-y-3">
                 <p className="text-sm text-slate-400">
                   Connect your Google account so task notifications and summaries are sent{" "}
@@ -328,7 +236,7 @@ export default function ProfilePage() {
             <Integration
               icon={Mail}
               name="Email sending"
-              on={integrations.email}
+              on={integrations?.email}
               hint={
                 profile.gmail_address
                   ? `From ${profile.gmail_address}`
@@ -338,7 +246,7 @@ export default function ProfilePage() {
             <Integration
               icon={Bot}
               name="Google Gemini"
-              on={integrations.ai}
+              on={integrations?.ai}
               hint="AI task descriptions, summary polish & assistant"
             />
           </div>
