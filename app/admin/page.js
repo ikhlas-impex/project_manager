@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
-import Link from "next/navigation";
+import Link from "next/link";
 import {
   ArrowLeft,
   ArrowRight,
