@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Bot, Check, KeyRound, Link2Off, Mail, Save, UserRound } from "lucide-react";
+import { Bot, Check, Clock, KeyRound, Link2Off, Mail, Save, ShieldCheck, UserRound } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { useData } from "@/components/DataProvider";
 import { useToast } from "@/components/Toast";
@@ -18,9 +18,10 @@ const GMAIL_RESULTS = {
 };
 
 export default function ProfilePage() {
-  const { profile, refreshProfile } = useAuth();
+  const { profile, refreshProfile, session } = useAuth();
   const { integrations, reload } = useData();
   const toast = useToast();
+  const [roleBusy, setRoleBusy] = useState(false);
 
   const [form, setForm] = useState({
     full_name: profile.full_name || "",
@@ -107,6 +108,19 @@ export default function ProfilePage() {
     }
   }
 
+  async function requestManagerRole() {
+    setRoleBusy(true);
+    try {
+      await api("/api/role/select", { role: "manager" });
+      await refreshProfile();
+      toast("Manager request submitted to Admin for approval!", "info");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setRoleBusy(false);
+    }
+  }
+
   const preview = { ...profile, ...form };
 
   return (
@@ -144,6 +158,49 @@ export default function ProfilePage() {
         </form>
 
         <div className="space-y-6">
+          {/* Workspace Role Card */}
+          <div className="glass space-y-4 p-5 sm:p-6">
+            <div className="flex items-center justify-between">
+              <h2 className="section-title flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-violet-300" /> Workspace Role
+              </h2>
+              <span className={`chip capitalize ${profile.role === "manager" ? "bg-violet-400/10 text-violet-300 ring-violet-400/30" : "bg-emerald-400/10 text-emerald-300 ring-emerald-400/30"}`}>
+                {profile.role}
+              </span>
+            </div>
+
+            {profile.role === "manager" ? (
+              <p className="text-xs text-slate-400">
+                You have administrative manager authority to assign tasks, supervise deadlines, and access team analytics.
+              </p>
+            ) : session?.user?.user_metadata?.manager_request_status === "pending" ? (
+              <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3.5 text-xs text-amber-200 space-y-1.5">
+                <div className="flex items-center gap-2 font-semibold">
+                  <Clock className="h-4 w-4 text-amber-400" />
+                  Manager Request Pending Approval
+                </div>
+                <p className="text-slate-300">
+                  Your upgrade request to become a Manager is awaiting review by the administrator on the Admin Portal.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-slate-400">
+                  You are currently an <strong>Employee</strong>. If you need authority to manage projects and assign tasks to teammates, you can request manager access.
+                </p>
+                <button
+                  type="button"
+                  disabled={roleBusy}
+                  onClick={requestManagerRole}
+                  className="btn-ghost btn-sm text-violet-300 hover:text-violet-200 hover:bg-violet-500/10 gap-1.5"
+                >
+                  {roleBusy ? <Spinner className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                  Request Upgrade to Manager
+                </button>
+              </div>
+            )}
+          </div>
+
           <form onSubmit={changePassword} className="glass space-y-4 p-5 sm:p-6">
             <h2 className="section-title flex items-center gap-2"><KeyRound className="h-4 w-4 text-amber-300" /> Change password</h2>
             <div>

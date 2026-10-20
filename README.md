@@ -4,7 +4,9 @@ A glass-morphism task manager for a small team (manager + employees), built with
 
 ## Features
 
-- **Login with simple usernames**: `manager / manager@123` and `user / user@123` by default. Each user can change their display name, avatar colour, notification Gmail and password from **Profile**.
+- **Google Workspace Authentication (Domain Restricted)**: Employees sign in via Google with corporate emails (restricted to `@impexappliances.com`). Users outside the domain are blocked.
+- **Role Selection & Admin Approval**: Upon first sign-in, employees choose either **Employee** (instant access) or **Manager** (requires admin approval).
+- **Master Admin Portal (`/admin`)**: A separate administrative portal secured with the password `Ikhlas@123`. The admin can review pending manager requests, approve or decline them, manage team roles, and view domain security settings.
 - **Assign tasks to each other** with priority, start time, **deadline (time to end)**, and status: To do → In progress → Waiting → Done. Drag cards between columns on the board.
 - **Waiting tracking**: mark a task as *Waiting on <person>* with a reason. The waiting time is counted automatically (live + accumulated), the person is emailed, and it shows on their dashboard as "Someone is waiting on you".
 - **Daily Summary**: an auto-generated, copy-paste-ready daily update (completed, in progress, waiting, new, up next) with each task described and your progress notes. You can view it for yourself, a teammate or the whole team, polish it with AI, and email it.

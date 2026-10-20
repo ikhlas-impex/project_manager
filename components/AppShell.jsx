@@ -2,7 +2,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart3, Bot, CalendarDays, ClipboardList, LayoutDashboard, LogOut, Plus, ScrollText, UserCog, Workflow } from "lucide-react";
+import { BarChart3, Bot, CalendarDays, ClipboardList, Clock, LayoutDashboard, LogOut, Plus, ScrollText, UserCog, Workflow } from "lucide-react";
 import { useAuth } from "./AuthProvider";
 import { DataProvider, useData } from "./DataProvider";
 import { Avatar, Spinner } from "./ui";
@@ -24,7 +24,13 @@ export default function AppShell({ children }) {
 
   useEffect(() => {
     if (!loading && !session) router.replace("/login");
-  }, [loading, session, router]);
+    if (!loading && session && profile) {
+      const meta = session.user?.user_metadata || {};
+      if (meta.role_selected === false && profile.role !== "manager") {
+        router.replace("/choose-role");
+      }
+    }
+  }, [loading, session, profile, router]);
 
   if (loading || !session || !profile) {
     return (
@@ -41,9 +47,12 @@ export default function AppShell({ children }) {
 }
 
 function Shell({ children }) {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, session } = useAuth();
   const { newTask, loading } = useData();
   const path = usePathname();
+
+  const isPendingManager =
+    session?.user?.user_metadata?.manager_request_status === "pending" && profile?.role !== "manager";
 
   return (
     <div className="min-h-screen md:pl-64">
@@ -82,7 +91,13 @@ function Shell({ children }) {
           <Avatar profile={profile} size={36} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-white">{profileName(profile)}</p>
-            <p className="text-xs capitalize text-slate-400">{profile.role}</p>
+            <p className="text-xs capitalize text-slate-400">
+              {isPendingManager ? (
+                <span className="text-amber-300 font-medium">Pending Manager</span>
+              ) : (
+                profile.role
+              )}
+            </p>
           </div>
           <button onClick={signOut} className="rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-rose-300" title="Sign out" aria-label="Sign out">
             <LogOut className="h-4 w-4" />
@@ -102,6 +117,20 @@ function Shell({ children }) {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 md:pb-10 lg:px-10 lg:pt-10">
+        {isPendingManager && (
+          <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 shrink-0 text-amber-400" />
+              <span>
+                Your request to become a <strong>Manager</strong> is awaiting administrator approval. You currently have standard Employee access.
+              </span>
+            </div>
+            <Link href="/profile" className="shrink-0 underline hover:text-white">
+              View Status
+            </Link>
+          </div>
+        )}
+
         {loading ? (
           <div className="grid h-64 place-items-center"><Spinner className="h-7 w-7" /></div>
         ) : (

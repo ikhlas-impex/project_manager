@@ -162,3 +162,9 @@ create table if not exists public.google_accounts (
   updated_at timestamptz not null default now()
 );
 alter table public.google_accounts enable row level security;
+
+-- Manager role approval tracking
+alter table public.profiles add column if not exists role_selected boolean default false;
+alter table public.profiles add column if not exists manager_request_status text default 'none' check (manager_request_status in ('none', 'pending', 'approved', 'rejected'));
+alter table public.profiles add column if not exists manager_requested_at timestamptz;
+
