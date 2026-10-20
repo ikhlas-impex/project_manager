@@ -298,3 +298,8 @@ end $$;
 
 grant execute on function public.rename_my_department(text) to authenticated;
 grant execute on function public.set_role_title(uuid, text) to authenticated;
+
+-- TeamFlow: project name on tasks (groups the daily WhatsApp update, e.g. "Elkitch – Sale Mela Application").
+-- Run in Supabase -> SQL Editor of the TeamFlow project (safe to re-run).
+alter table public.tasks add column if not exists project text;
+create index if not exists tasks_project_idx on public.tasks(project);

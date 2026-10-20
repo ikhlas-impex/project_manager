@@ -26,6 +26,7 @@ export default function TaskModal({ task: initial, defaults = {}, onClose }) {
 
   // Form starts from what the caller passed (it may preset a status, e.g. drag to "Waiting")
   const [form, setForm] = useState(() => ({
+    project: initial?.project ?? defaults.project ?? "",
     title: initial?.title ?? "",
     description: initial?.description ?? "",
     assigned_to: initial?.assigned_to ?? defaults.assigned_to ?? me.id,
@@ -55,6 +56,7 @@ export default function TaskModal({ task: initial, defaults = {}, onClose }) {
     if (form.status === "waiting" && !form.waiting_on) return toast("Choose who you are waiting on", "error");
 
     const fields = {
+      project: form.project.trim() || null,
       title: form.title.trim(),
       description: form.description.trim() || null,
       assigned_to: form.assigned_to || null,
@@ -142,11 +144,12 @@ export default function TaskModal({ task: initial, defaults = {}, onClose }) {
   }
 
   const others = profiles.filter((p) => p.id !== me.id);
+  const projects = [...new Set(tasks.map((t) => t.project).filter(Boolean))].sort();
 
   // Plain-text copy of the task with its progress notes
   const taskAsText = () =>
     [
-      `📌 ${task.title}`,
+      `📌 ${task.project ? `${task.project} – ` : ""}${task.title}`,
       `👤 ${nameOf(profiles, task.assigned_to)} · ${STATUS[task.status].label} · ${PRIORITY[task.priority].label}`,
       task.due_at ? `📅 Due ${fmtDateTime(task.due_at)}` : null,
       task.status === "waiting" ? `⏳ Waiting on ${nameOf(profiles, task.waiting_on)}${task.waiting_reason ? ` (${task.waiting_reason})` : ""}` : null,
@@ -164,8 +167,15 @@ export default function TaskModal({ task: initial, defaults = {}, onClose }) {
         <form onSubmit={save} className="space-y-4">
           <fieldset disabled={!editable} className="space-y-4">
             <div>
+              <label className="label" htmlFor="t-project">Project</label>
+              <input id="t-project" list="t-projects" className="input" value={form.project} onChange={set("project")} placeholder="e.g. Elkitch – Sale Mela Application" autoFocus={isNew} />
+              <datalist id="t-projects">
+                {projects.map((p) => <option key={p} value={p} />)}
+              </datalist>
+            </div>
+            <div>
               <label className="label" htmlFor="t-title">Title</label>
-              <input id="t-title" className="input text-base" value={form.title} onChange={set("title")} placeholder="e.g. Prepare product catalogue for client" autoFocus={isNew} />
+              <input id="t-title" className="input text-base" value={form.title} onChange={set("title")} placeholder="e.g. Add Excel export to the data-entry form" />
             </div>
 
             <div>

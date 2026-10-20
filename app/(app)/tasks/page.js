@@ -26,7 +26,7 @@ export default function TasksPage() {
       if (scope === "byme" && t.created_by !== me.id) return false;
       if (scope.startsWith("u:") && t.assigned_to !== scope.slice(2)) return false;
       if (priority && t.priority !== priority) return false;
-      if (needle && !`${t.title} ${t.description ?? ""}`.toLowerCase().includes(needle)) return false;
+      if (needle && !`${t.project ?? ""} ${t.title} ${t.description ?? ""}`.toLowerCase().includes(needle)) return false;
       return true;
     });
   }, [tasks, scope, priority, q, me.id]);

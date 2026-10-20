@@ -36,8 +36,12 @@ Task title: "${title}"${notes ? `\nExisting notes: ${notes}` : ""}
 Return only the description and checklist.`,
 
   summary: ({ text }) =>
-    `Rewrite this daily work update so it is clear and professional, ready to paste into chat or email.
-Keep every task and fact, keep the emoji section headings, add a one-line "Highlights" at the top. Plain text only.
+    `Polish this daily work update that will be pasted into WhatsApp. Keep EXACTLY the same structure:
+- Keep the first line ("📅 ...") and any "👤 Name" lines unchanged.
+- Keep every "🔹 Project: <name>" line unchanged, with one blank line after it and a blank line between projects.
+- Under each project, keep one line per piece of work. Rewrite each as one clear, professional, past-tense sentence ending with a full stop (fix grammar and spelling, keep all facts, do not invent anything, do not merge or drop lines). Keep the original meaning exactly: if something was uncertain or in progress, keep it that way (e.g. "Checked whether…", "Started…"), never upgrade it to "verified" or "completed".
+- Keep lines starting with ✅ or ⏳.
+- No bullets, no markdown, no asterisks, no extra headings, no introduction or closing text.
 
 ${text}`,
 

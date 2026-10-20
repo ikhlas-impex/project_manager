@@ -15,6 +15,7 @@ export default function TaskCard({ task, showStatus = false }) {
       className={`glass card-hover group relative w-full overflow-hidden p-4 text-left ${task.status === "done" ? "opacity-75" : ""}`}
     >
       <span className="absolute inset-y-0 left-0 w-1" style={{ background: STATUS[task.status].hex }} />
+      {task.project && <p className="mb-1 truncate text-[11px] font-medium text-violet-300/90">🔹 {task.project}</p>}
       <div className="flex items-start justify-between gap-3">
         <p className={`font-medium leading-snug text-slate-100 ${task.status === "done" ? "line-through decoration-slate-500" : ""}`}>
           {task.title}

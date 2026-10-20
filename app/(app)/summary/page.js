@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, MessageSquarePlus, RotateCcw, Send, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, MessageCircle, MessageSquarePlus, RotateCcw, Send, Sparkles } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { useData } from "@/components/DataProvider";
 import { useToast } from "@/components/Toast";
@@ -13,7 +13,7 @@ import { dayKey, fromDayKey, profileName } from "@/lib/format";
 
 export default function SummaryPage() {
   const { profile: me } = useAuth();
-  const { tasks, activity, profiles, team, integrations } = useData();
+  const { tasks, activity, profiles, team, myDepartment, integrations, newTask } = useData();
   const toast = useToast();
 
   const [day, setDay] = useState(dayKey(new Date()));
@@ -33,8 +33,8 @@ export default function SummaryPage() {
   }, [me?.id]);
 
   const generated = useMemo(
-    () => buildDailySummary({ date: fromDayKey(day), tasks, activity, profiles, userId: who === "team" ? null : who }),
-    [day, who, tasks, activity, profiles]
+    () => buildDailySummary({ date: fromDayKey(day), tasks, activity, profiles, userId: who === "team" ? null : who, teamName: myDepartment?.name }),
+    [day, who, tasks, activity, profiles, myDepartment?.name]
   );
 
   // Auto-regenerate whenever data changes, unless the user has edited the text
@@ -79,20 +79,30 @@ export default function SummaryPage() {
     }
   }
 
+  // Each line becomes its own sentence under the task's project
   async function postNote(e) {
     e.preventDefault();
     const task = tasks.find((t) => t.id === noteTask);
-    if (!task || !note.trim()) return;
-    await addNote(task, note.trim(), me);
+    const lines = note.split("\n").map((l) => l.replace(/^[\s•\-*]+/, "").trim()).filter(Boolean);
+    if (!task || !lines.length) return;
+    for (const line of lines) await addNote(task, line, me);
     setNote("");
-    toast("Update added to summary");
+    toast(lines.length > 1 ? `${lines.length} lines added to the update` : "Added to the update");
   }
 
-  const myOpen = tasks.filter((t) => t.assigned_to === me.id && t.status !== "done");
+  // My tasks grouped by project for the picker (done today still allowed, to log final work)
+  const today = dayKey(new Date());
+  const myTasks = tasks.filter(
+    (t) => t.assigned_to === me.id && (t.status !== "done" || (t.completed_at && dayKey(t.completed_at) === today))
+  );
+  const byProject = myTasks.reduce((acc, t) => {
+    (acc[t.project || "No project"] ||= []).push(t);
+    return acc;
+  }, {});
 
   return (
     <>
-      <PageHeader title="Daily Summary" subtitle="Auto-generated from today's tasks & updates — copy and paste it anywhere.">
+      <PageHeader title="Daily Summary" subtitle="Your WhatsApp-ready work update, grouped by project. It builds itself from the work you log.">
         <div className="glass flex items-center gap-1 rounded-xl p-1">
           <button onClick={() => shift(-1)} className="rounded-lg p-2 hover:bg-white/10" aria-label="Previous day"><ChevronLeft className="h-4 w-4" /></button>
           <input type="date" value={day} max={dayKey(new Date())} onChange={(e) => { setDay(e.target.value); setEdited(false); }} className="rounded-lg bg-transparent px-2 py-1 text-sm outline-none" />
@@ -111,6 +121,14 @@ export default function SummaryPage() {
         <section className="glass p-4 sm:p-5">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <CopyButton text={text} label="Copy summary" className="btn-primary" />
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(text)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="btn border border-emerald-400/30 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25"
+            >
+              <MessageCircle className="h-4 w-4" /> WhatsApp
+            </a>
             {integrations.ai && (
               <button onClick={polish} disabled={aiBusy} className="btn-ghost">
                 {aiBusy ? <Spinner className="h-4 w-4" /> : <Sparkles className="h-4 w-4 text-fuchsia-300" />} Polish with AI
@@ -124,21 +142,41 @@ export default function SummaryPage() {
           <textarea
             value={text}
             onChange={(e) => { setText(e.target.value); setEdited(true); }}
-            className="input min-h-[460px] resize-y font-mono text-[13px] leading-relaxed"
+            className="input min-h-[460px] resize-y text-sm leading-relaxed"
             spellCheck={false}
           />
         </section>
 
         <aside className="space-y-4">
           <form onSubmit={postNote} className="glass space-y-3 p-4">
-            <h2 className="section-title flex items-center gap-2"><MessageSquarePlus className="h-4 w-4 text-violet-300" /> Log what you did</h2>
-            <p className="text-xs text-slate-400">Short progress notes on a task are added under that task in the summary.</p>
+            <h2 className="section-title flex items-center gap-2"><MessageSquarePlus className="h-4 w-4 text-violet-300" /> Log today&apos;s work</h2>
+            <p className="text-xs text-slate-400">
+              Pick the task, write what you did. Each line becomes one sentence under <span className="text-slate-200">🔹 Project</span> in the update.
+            </p>
             <select className="input" value={noteTask} onChange={(e) => setNoteTask(e.target.value)} required aria-label="Task">
               <option value="">Choose a task…</option>
-              {myOpen.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
+              {Object.entries(byProject)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([project, list]) => (
+                  <optgroup key={project} label={project}>
+                    {list.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
+                  </optgroup>
+                ))}
             </select>
-            <textarea rows={3} className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Finished first draft, sent for review" required />
-            <button className="btn-primary w-full">Add update</button>
+            <textarea
+              rows={4}
+              className="input"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder={"Reviewed the new Azure server.\nEvaluated the setup for PostgreSQL integration."}
+              required
+            />
+            <div className="flex gap-2">
+              <button className="btn-primary flex-1">Add to update</button>
+              <button type="button" onClick={() => newTask()} className="btn-ghost" title="Task not listed? Create it">
+                + Task
+              </button>
+            </div>
           </form>
 
           <div className="glass space-y-3 p-4">
