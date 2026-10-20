@@ -46,10 +46,12 @@ export default function CalendarPage() {
   return (
     <>
       <PageHeader title="Calendar" subtitle="Deadlines by day. Click a day to add a task due that day.">
-        <label className="btn-ghost cursor-pointer">
-          <input type="checkbox" className="accent-violet-500" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} />
-          Only mine
-        </label>
+        {me.role === "manager" && (
+          <label className="btn-ghost cursor-pointer">
+            <input type="checkbox" className="accent-violet-500" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} />
+            Only mine
+          </label>
+        )}
         <div className="glass flex items-center gap-1 rounded-xl p-1">
           <button onClick={() => shift(-1)} className="rounded-lg p-2 hover:bg-white/10" aria-label="Previous month"><ChevronLeft className="h-4 w-4" /></button>
           <span className="min-w-36 text-center text-sm font-semibold">

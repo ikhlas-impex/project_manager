@@ -89,7 +89,7 @@ export default function Dashboard() {
         </section>
 
         <section>
-          <h2 className="section-title mb-3">Team activity</h2>
+          <h2 className="section-title mb-3">{me.role === "manager" ? "Team activity" : "My activity"}</h2>
           <div className="glass p-4">
             {d.recent.length ? (
               <ol className="space-y-4">

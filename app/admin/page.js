@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Briefcase,
+  Building2,
   Check,
   CheckCircle2,
   Clock,
@@ -28,6 +29,7 @@ import {
 } from "lucide-react";
 import { Avatar, Spinner } from "@/components/ui";
 import AdminAI from "@/components/AdminAI";
+import AdminDepartments from "@/components/AdminDepartments";
 import { formatDate } from "@/lib/format";
 
 export default function AdminPage() {
@@ -440,6 +442,18 @@ export default function AdminPage() {
           </button>
 
           <button
+            onClick={() => setActiveTab("departments")}
+            className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${
+              activeTab === "departments"
+                ? "bg-white/10 text-white shadow-inner ring-1 ring-white/10"
+                : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+            }`}
+          >
+            <Building2 className="h-4 w-4 text-sky-400" />
+            <span>Departments</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab("ai")}
             className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${
               activeTab === "ai"
@@ -451,6 +465,9 @@ export default function AdminPage() {
             <span>AI (Gemini)</span>
           </button>
         </div>
+
+        {/* Tab: DEPARTMENTS, MEMBERS, ACCESS & ROLE NAMES */}
+        {activeTab === "departments" && <AdminDepartments notify={showToast} onChanged={fetchAdminData} />}
 
         {/* Tab 4: GEMINI KEYS, MODELS & USAGE */}
         {activeTab === "ai" && <AdminAI notify={showToast} />}

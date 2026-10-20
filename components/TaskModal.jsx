@@ -4,7 +4,7 @@ import { CalendarPlus, Clock, Hourglass, Mail, MessageSquarePlus, Send, Sparkles
 import { useAuth } from "./AuthProvider";
 import { useData } from "./DataProvider";
 import { useToast } from "./Toast";
-import { Avatar, Modal, Segmented, Spinner } from "./ui";
+import { Avatar, CopyButton, Modal, Segmented, Spinner } from "./ui";
 import { askAI, sendEmail } from "@/lib/api";
 import { canEdit, createTask, updateTask, addNote, deleteTask } from "@/lib/tasks";
 import {
@@ -16,7 +16,7 @@ const toISO = (local) => (local ? new Date(local).toISOString() : null);
 
 export default function TaskModal({ task: initial, defaults = {}, onClose }) {
   const { profile: me } = useAuth();
-  const { profiles, tasks, activity, integrations } = useData();
+  const { profiles, team, tasks, activity, integrations } = useData();
   const toast = useToast();
 
   // Keep the live version so timers / waiting info update via realtime
@@ -143,6 +143,21 @@ export default function TaskModal({ task: initial, defaults = {}, onClose }) {
 
   const others = profiles.filter((p) => p.id !== me.id);
 
+  // Plain-text copy of the task with its progress notes
+  const taskAsText = () =>
+    [
+      `📌 ${task.title}`,
+      `👤 ${nameOf(profiles, task.assigned_to)} · ${STATUS[task.status].label} · ${PRIORITY[task.priority].label}`,
+      task.due_at ? `📅 Due ${fmtDateTime(task.due_at)}` : null,
+      task.status === "waiting" ? `⏳ Waiting on ${nameOf(profiles, task.waiting_on)}${task.waiting_reason ? ` (${task.waiting_reason})` : ""}` : null,
+      task.description ? `\n${task.description}` : null,
+      ...(history.some((a) => a.kind === "note")
+        ? ["\nUpdates:", ...history.filter((a) => a.kind === "note").reverse().map((a) => `• ${fmtDateTime(a.created_at)} — ${nameOf(profiles, a.user_id)}: ${a.message}`)]
+        : []),
+    ]
+      .filter((l) => l !== null)
+      .join("\n");
+
   return (
     <Modal open onClose={onClose} title={isNew ? "New task" : editable ? "Edit task" : "Task details"} wide={!isNew}>
       <div className={isNew ? "" : "grid gap-6 lg:grid-cols-[1fr_320px]"}>
@@ -170,11 +185,14 @@ export default function TaskModal({ task: initial, defaults = {}, onClose }) {
               <div>
                 <label className="label" htmlFor="t-assign">Assign to</label>
                 <select id="t-assign" className="input" value={form.assigned_to || ""} onChange={set("assigned_to")}>
-                  {profiles.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {profileName(p)}{p.id === me.id ? " (me)" : ""} · {p.role}
-                    </option>
-                  ))}
+                  {/* people in my department, plus the current assignee if they're elsewhere */}
+                  {profiles
+                    .filter((p) => team.some((m) => m.id === p.id) || p.id === initial?.assigned_to)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {profileName(p)}{p.id === me.id ? " (me)" : ""} · {p.role_title || p.role}
+                      </option>
+                    ))}
                 </select>
               </div>
               <div>
@@ -252,6 +270,7 @@ export default function TaskModal({ task: initial, defaults = {}, onClose }) {
               <button type="button" onClick={openMail} disabled={!integrations.email || !others.length} title={integrations.email ? "" : "Connect your Gmail in Profile first"} className="btn-ghost btn-sm">
                 <Mail className="h-3.5 w-3.5" /> Email
               </button>
+              <CopyButton text={taskAsText()} label="Copy task" className="btn-ghost btn-sm col-span-2" />
             </div>
 
             {mail && (

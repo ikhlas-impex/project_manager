@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { api } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { Avatar, Spinner } from "@/components/ui";
 
 export default function ChooseRolePage() {
@@ -24,7 +25,24 @@ export default function ChooseRolePage() {
   const [checkingManual, setCheckingManual] = useState(false);
   const [error, setError] = useState("");
   const [statusNote, setStatusNote] = useState("");
+  const [departments, setDepartments] = useState([]);
+  const [departmentId, setDepartmentId] = useState("");
+  const [roleTitle, setRoleTitle] = useState("");
   const pollTimerRef = useRef(null);
+
+  // Departments to choose from (managed by the admin)
+  useEffect(() => {
+    if (!session) return;
+    supabase.from("departments").select("id, name").order("name").then(({ data }) => {
+      setDepartments(data || []);
+      if (data?.length === 1) setDepartmentId(data[0].id);
+    });
+  }, [session]);
+
+  useEffect(() => {
+    if (profile?.department_id) setDepartmentId(profile.department_id);
+    if (profile?.role_title) setRoleTitle(profile.role_title);
+  }, [profile?.department_id, profile?.role_title]);
 
   // If already a manager, immediately go to dashboard
   useEffect(() => {
@@ -115,9 +133,13 @@ export default function ChooseRolePage() {
 
   async function handleSelect(role) {
     setError("");
+    if (departments.length && !departmentId) {
+      setError("Please choose your department first.");
+      return;
+    }
     setSubmitting(true);
     try {
-      const res = await api("/api/role/select", { role });
+      const res = await api("/api/role/select", { role, department_id: departmentId || null, role_title: roleTitle });
       await refreshProfile();
       if (role === "manager") {
         setPendingState(true);
@@ -241,6 +263,22 @@ export default function ChooseRolePage() {
           </div>
         ) : (
           /* State 3: Selection cards */
+          <>
+          {departments.length > 0 && (
+            <div className="glass mb-6 grid gap-4 p-5 sm:grid-cols-2">
+              <div>
+                <label className="label" htmlFor="cr-dept">Your department</label>
+                <select id="cr-dept" className="input" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+                  <option value="">Select department…</option>
+                  {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label" htmlFor="cr-title">Role name (optional)</label>
+                <input id="cr-title" className="input" value={roleTitle} onChange={(e) => setRoleTitle(e.target.value)} placeholder="e.g. Sales Executive" maxLength={60} />
+              </div>
+            </div>
+          )}
           <div className="grid gap-6 md:grid-cols-2">
             {/* Employee Card */}
             <div className="glass flex flex-col justify-between p-6 sm:p-7 transition-all duration-300 hover:border-emerald-500/40 hover:bg-white/[0.04]">
@@ -338,6 +376,7 @@ export default function ChooseRolePage() {
               </div>
             </div>
           </div>
+          </>
         )}
       </div>
     </div>

@@ -17,6 +17,17 @@ export async function POST(req) {
   const userId = auth.user.id;
   const currentMeta = auth.user.user_metadata || {};
 
+  // Department + role name chosen on the same screen
+  const { count: deptCount } = await admin.from("departments").select("id", { count: "exact", head: true });
+  if (deptCount) {
+    const { data: dept } = await admin.from("departments").select("id").eq("id", body.department_id || "00000000-0000-0000-0000-000000000000").maybeSingle();
+    if (!dept) return json({ error: "Please choose a valid department." }, 400);
+    await admin
+      .from("profiles")
+      .update({ department_id: dept.id, role_title: String(body.role_title || "").trim().slice(0, 60) || null })
+      .eq("id", userId);
+  }
+
   if (requested === "employee") {
     // Freely selected employee
     await admin.from("profiles").update({ role: "employee" }).eq("id", userId);

@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart3, Bot, CalendarDays, ClipboardList, Clock, LayoutDashboard, LogOut, Plus, ScrollText, Sparkles, UserCog, Workflow } from "lucide-react";
+import { BarChart3, Bot, CalendarDays, ClipboardList, Clock, LayoutDashboard, LogOut, Plus, ScrollText, Sparkles, UserCog, Users, Workflow } from "lucide-react";
 import { useAuth } from "./AuthProvider";
 import { DataProvider, useData } from "./DataProvider";
 import { Avatar, Spinner } from "./ui";
@@ -16,6 +16,7 @@ const NAV = [
   { href: "/summary", label: "Daily Summary", icon: ScrollText },
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/assistant", label: "AI Assistant", icon: Bot },
+  { href: "/team", label: "Team", icon: Users },
   { href: "/profile", label: "Profile", icon: UserCog },
 ];
 
@@ -49,7 +50,7 @@ export default function AppShell({ children }) {
 
 function Shell({ children }) {
   const { profile, signOut, session, refreshProfile } = useAuth();
-  const { newTask, loading, reload } = useData();
+  const { newTask, loading, reload, myDepartment } = useData();
   const path = usePathname();
   const [justApproved, setJustApproved] = useState(false);
 
@@ -107,11 +108,14 @@ function Shell({ children }) {
           <Avatar profile={profile} size={36} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-white">{profileName(profile)}</p>
-            <p className="text-xs capitalize text-slate-400">
+            <p className="truncate text-xs text-slate-400">
               {isPendingManager ? (
                 <span className="text-amber-300 font-medium">Pending Manager</span>
               ) : (
-                profile.role
+                <>
+                  {profile.role_title || <span className="capitalize">{profile.role}</span>}
+                  {myDepartment && <span className="text-slate-500"> · {myDepartment.name}</span>}
+                </>
               )}
             </p>
           </div>

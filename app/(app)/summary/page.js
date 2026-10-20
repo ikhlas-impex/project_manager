@@ -13,7 +13,7 @@ import { dayKey, fromDayKey, profileName } from "@/lib/format";
 
 export default function SummaryPage() {
   const { profile: me } = useAuth();
-  const { tasks, activity, profiles, integrations } = useData();
+  const { tasks, activity, profiles, team, integrations } = useData();
   const toast = useToast();
 
   const [day, setDay] = useState(dayKey(new Date()));
@@ -98,10 +98,13 @@ export default function SummaryPage() {
           <input type="date" value={day} max={dayKey(new Date())} onChange={(e) => { setDay(e.target.value); setEdited(false); }} className="rounded-lg bg-transparent px-2 py-1 text-sm outline-none" />
           <button onClick={() => shift(1)} disabled={day >= dayKey(new Date())} className="rounded-lg p-2 hover:bg-white/10 disabled:opacity-30" aria-label="Next day"><ChevronRight className="h-4 w-4" /></button>
         </div>
-        <select className="input w-auto" value={who} onChange={(e) => { setWho(e.target.value); setEdited(false); }} aria-label="Summary for">
-          {profiles.map((p) => <option key={p.id} value={p.id}>{profileName(p)}{p.id === me.id ? " (me)" : ""}</option>)}
-          <option value="team">Whole team</option>
-        </select>
+        {/* only managers can view (and copy) other people's summaries */}
+        {me.role === "manager" && (
+          <select className="input w-auto" value={who} onChange={(e) => { setWho(e.target.value); setEdited(false); }} aria-label="Summary for">
+            {team.map((p) => <option key={p.id} value={p.id}>{profileName(p)}{p.id === me.id ? " (me)" : ""}</option>)}
+            <option value="team">Whole department</option>
+          </select>
+        )}
       </PageHeader>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">

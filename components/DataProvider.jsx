@@ -14,6 +14,7 @@ export function DataProvider({ children }) {
   const [profiles, setProfiles] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [activity, setActivity] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [integrations, setIntegrations] = useState({ google: false, ai: false });
   const [modal, setModal] = useState(null); // { task } | { defaults }
@@ -21,14 +22,16 @@ export function DataProvider({ children }) {
 
   const reload = useCallback(async () => {
     const since = new Date(Date.now() - ACTIVITY_DAYS * 864e5).toISOString();
-    const [p, t, a] = await Promise.all([
+    const [p, t, a, d] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at"),
       supabase.from("tasks").select("*").order("created_at", { ascending: false }),
       supabase.from("task_activity").select("*").gte("created_at", since).order("created_at", { ascending: false }),
+      supabase.from("departments").select("*").order("name"),
     ]);
     if (p.data) setProfiles(p.data);
     if (t.data) setTasks(t.data);
     if (a.data) setActivity(a.data);
+    if (d.data) setDepartments(d.data);
     setLoading(false);
   }, []);
 
@@ -52,8 +55,14 @@ export function DataProvider({ children }) {
     };
   }, [reload]);
 
+  // People in my department (always includes me). Managers see this team's work.
+  const team = profiles.filter((p) => p.id === me?.id || (me?.department_id && p.department_id === me.department_id));
+
   const value = {
     profiles,
+    team,
+    departments,
+    myDepartment: departments.find((d) => d.id === me?.department_id) || null,
     tasks,
     activity,
     loading,

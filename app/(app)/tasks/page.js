@@ -11,7 +11,7 @@ import { STATUS, STATUS_ORDER, PRIORITY, PRIORITY_ORDER, dueInfo, profileName } 
 
 export default function TasksPage() {
   const { profile: me } = useAuth();
-  const { tasks, profiles, openTask, newTask } = useData();
+  const { tasks, profiles, team, openTask, newTask } = useData();
   const toast = useToast();
   const [scope, setScope] = useState("all");
   const [priority, setPriority] = useState("");
@@ -59,12 +59,14 @@ export default function TasksPage() {
           <input className="input pl-10" placeholder="Search tasks…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <select className="input lg:w-48" value={scope} onChange={(e) => setScope(e.target.value)} aria-label="Whose tasks">
-          <option value="all">Everyone</option>
+          {/* employees only receive their own tasks (enforced by the database) */}
+          <option value="all">{me.role === "manager" ? "Everyone" : "All my tasks"}</option>
           <option value="mine">Assigned to me</option>
           <option value="byme">Created by me</option>
-          {profiles.filter((p) => p.id !== me.id).map((p) => (
-            <option key={p.id} value={`u:${p.id}`}>{profileName(p)}</option>
-          ))}
+          {me.role === "manager" &&
+            team.filter((p) => p.id !== me.id).map((p) => (
+              <option key={p.id} value={`u:${p.id}`}>{profileName(p)}</option>
+            ))}
         </select>
         <select className="input lg:w-40" value={priority} onChange={(e) => setPriority(e.target.value)} aria-label="Priority">
           <option value="">Any priority</option>

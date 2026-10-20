@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clock, Download, Hourglass, PlusCircle, Send, Sparkles, Target } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 import { useData } from "@/components/DataProvider";
 import { useToast } from "@/components/Toast";
 import { CopyButton, PageHeader, RichText, Segmented, Spinner, StatCard } from "@/components/ui";
@@ -9,24 +10,26 @@ import { askAI, sendEmail } from "@/lib/api";
 import { PRIORITY, PRIORITY_ORDER, STATUS, STATUS_ORDER, fmtMinutes, fromDayKey, nameOf, profileName } from "@/lib/format";
 
 export default function ReportsPage() {
-  const { tasks, activity, profiles, integrations } = useData();
+  const { profile: me } = useAuth();
+  const { tasks, activity, profiles, team, myDepartment, integrations } = useData();
   const toast = useToast();
+  const isManager = me.role === "manager";
   const [kind, setKind] = useState("week");
   const [offset, setOffset] = useState(0);
-  const [who, setWho] = useState("");
+  const [who, setWho] = useState(isManager ? "" : me.id); // employees: always their own report
   const [ai, setAi] = useState("");
   const [busy, setBusy] = useState(false);
   const [mailTo, setMailTo] = useState("");
 
   const { start, end, label } = periodRange(kind, offset);
   const r = useMemo(
-    () => computeReport({ tasks, activity, profiles, start, end, userId: who || null }),
+    () => computeReport({ tasks, activity, profiles, members: team, start, end, userId: who || null }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tasks, activity, profiles, kind, offset, who]
   );
   const days = Object.entries(r.perDay);
   const maxDay = Math.max(1, ...days.map(([, v]) => Math.max(v.completed, v.created)));
-  const scopeName = who ? nameOf(profiles, who) : "Team";
+  const scopeName = who ? nameOf(profiles, who) : myDepartment?.name || "Team";
 
   const reset = (fn) => (v) => { fn(v); setAi(""); };
 
@@ -91,10 +94,12 @@ export default function ReportsPage() {
           <span className="min-w-40 text-center text-sm font-semibold">{label}</span>
           <button onClick={() => reset(setOffset)(offset + 1)} disabled={offset >= 0} className="rounded-lg p-2 hover:bg-white/10 disabled:opacity-30" aria-label="Next period"><ChevronRight className="h-4 w-4" /></button>
         </div>
-        <select className="input w-auto" value={who} onChange={(e) => reset(setWho)(e.target.value)} aria-label="Report scope">
-          <option value="">Whole team</option>
-          {profiles.map((p) => <option key={p.id} value={p.id}>{profileName(p)}</option>)}
-        </select>
+        {isManager && (
+          <select className="input w-auto" value={who} onChange={(e) => reset(setWho)(e.target.value)} aria-label="Report scope">
+            <option value="">Whole department</option>
+            {team.map((p) => <option key={p.id} value={p.id}>{profileName(p)}</option>)}
+          </select>
+        )}
       </PageHeader>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
