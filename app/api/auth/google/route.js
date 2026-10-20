@@ -9,6 +9,7 @@ export async function GET(req) {
   }
   const domains = getAllowedDomains();
   const domainHint = domains.length > 0 && domains[0] !== "*" ? domains[0] : undefined;
-  const target = loginAuthUrl(url.origin, domainHint);
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || url.origin).replace(/\/+$/, "");
+  const target = loginAuthUrl(appUrl, domainHint);
   return Response.redirect(target, 302);
 }

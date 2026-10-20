@@ -23,14 +23,15 @@ export async function GET(req) {
       const code = url.searchParams.get("code");
       if (!code) return Response.redirect(`${url.origin}/login?error=missing_code`, 302);
 
-      const tokens = await exchangeCode(url.origin, code);
+      const appUrl = (process.env.NEXT_PUBLIC_APP_URL || url.origin).replace(/\/+$/, "");
+      const tokens = await exchangeCode(appUrl, code);
       const userInfo = await getGoogleUserInfo(tokens.access_token);
       const email = userInfo.email.toLowerCase().trim();
 
       // Enforce Google Workspace domain check
       if (!isAllowedDomain(email)) {
         return Response.redirect(
-          `${url.origin}/login?error=domain_not_allowed&email=${encodeURIComponent(email)}`,
+          `${appUrl}/login?error=domain_not_allowed&email=${encodeURIComponent(email)}`,
           302
         );
       }
@@ -95,12 +96,27 @@ export async function GET(req) {
         type: "magiclink",
         email,
         options: {
-          redirectTo: `${url.origin}/auth/confirm`,
+          redirectTo: `${appUrl}/auth/confirm`,
         },
       });
 
       if (linkErr || !linkData?.properties?.action_link) {
         throw linkErr || new Error("Failed to generate login authentication link");
+      }
+
+      // Pre-resolve token server-side to rewrite destination directly to the Vercel app
+      try {
+        const verifyRes = await fetch(linkData.properties.action_link, { redirect: "manual" });
+        const targetLocation = verifyRes.headers.get("location");
+        if (targetLocation && targetLocation.includes("access_token")) {
+          const rewrittenUrl = targetLocation.replace(
+            /^https?:\/\/[^/#?]+(?:\/auth\/confirm)?/,
+            `${appUrl}/auth/confirm`
+          );
+          return Response.redirect(rewrittenUrl, 302);
+        }
+      } catch (preErr) {
+        console.warn("Failed to pre-resolve action link server-side:", preErr);
       }
 
       return Response.redirect(linkData.properties.action_link, 302);
