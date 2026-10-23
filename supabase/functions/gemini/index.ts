@@ -41,9 +41,23 @@ Return only the description and checklist.`,
 - Keep every "🔹 Project: <name>" line unchanged, with one blank line after it and a blank line between projects.
 - Under each project, keep one line per piece of work. Rewrite each as one clear, professional, past-tense sentence ending with a full stop (fix grammar and spelling, keep all facts, do not invent anything, do not merge or drop lines). Keep the original meaning exactly: if something was uncertain or in progress, keep it that way (e.g. "Checked whether…", "Started…"), never upgrade it to "verified" or "completed".
 - Keep lines starting with ✅ or ⏳.
+- Each project section must read as a complete update of at least 150 characters. If a section is shorter, make its sentences more descriptive using ONLY the facts already present (who, what, why, status) — never add new facts.
 - No bullets, no markdown, no asterisks, no extra headings, no introduction or closing text.
 
 ${text}`,
+
+  elaborate: ({ note, title, project, description }) =>
+    `Expand this short work note into a clear, professional entry for a daily WhatsApp work update.
+Task: "${title}"${project ? ` (project: ${project})` : ""}${description ? `\nTask description: ${String(description).slice(0, 800)}` : ""}
+Note written by the employee: "${note}"
+
+Rules:
+- Past tense, written as what was done today. 1–3 sentences, each on its own line.
+- Total length at least 170 and at most 420 characters.
+- Use only facts from the note and the task description; do not invent results, numbers, names, dates or approvals.
+- If something is pending, uncertain or in progress, keep it that way.
+- Do NOT start with or include a heading, the project name on its own line, or a "Task:"/"Project:" label — the app adds the project heading itself.
+- No bullets, markdown, emojis, quotes or introduction — return only the sentences.`,
 
   report: ({ period, stats, tasks }) =>
     `Analyse this team performance data for ${period} and write a report with these sections:

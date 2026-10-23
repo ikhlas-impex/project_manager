@@ -5,7 +5,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { useData } from "@/components/DataProvider";
 import { Avatar, CopyButton, EmptyState, PageHeader, RichText, Spinner } from "@/components/ui";
 import { askAI } from "@/lib/api";
-import { nameOf, profileName } from "@/lib/format";
+import { nameOf, profileName, waitingName } from "@/lib/format";
 
 const SUGGESTIONS = [
   "Plan my day: what should I work on first?",
@@ -41,7 +41,7 @@ export default function AssistantPage() {
       tasks: tasks.filter((t) => t.status !== "done" || Date.now() - new Date(t.completed_at) < 14 * 864e5).slice(0, 120).map((t) => ({
         title: t.title, description: t.description?.slice(0, 300), status: t.status, priority: t.priority,
         assignee: nameOf(profiles, t.assigned_to), createdBy: nameOf(profiles, t.created_by), due: t.due_at,
-        completed: t.completed_at, waitingOn: t.waiting_on ? nameOf(profiles, t.waiting_on) : undefined,
+        completed: t.completed_at, waitingOn: t.status === "waiting" ? waitingName(profiles, t) : undefined,
         waitingSince: t.waiting_since || undefined, waitingReason: t.waiting_reason || undefined,
       })),
     };

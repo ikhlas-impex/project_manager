@@ -2,7 +2,7 @@
 import { CalendarClock, Hourglass } from "lucide-react";
 import { useData } from "./DataProvider";
 import { Avatar, PriorityChip, StatusChip } from "./ui";
-import { STATUS, dueInfo, fmtMinutes, waitingMinutes, nameOf } from "@/lib/format";
+import { STATUS, dueInfo, fmtMinutes, waitingMinutes, waitingName } from "@/lib/format";
 
 export default function TaskCard({ task, showStatus = false }) {
   const { profiles, openTask } = useData();
@@ -27,7 +27,9 @@ export default function TaskCard({ task, showStatus = false }) {
       {task.status === "waiting" && (
         <p className="mt-2.5 flex items-center gap-1.5 rounded-lg bg-amber-400/10 px-2 py-1 text-[11px] text-amber-200">
           <Hourglass className="h-3 w-3 shrink-0" />
-          Waiting on {nameOf(profiles, task.waiting_on)} · {fmtMinutes(waitingMinutes(task))}
+          <span className="truncate" title={task.waiting_reason || ""}>
+            Waiting on {waitingName(profiles, task)} · {fmtMinutes(waitingMinutes(task))}
+          </span>
         </p>
       )}
 

@@ -1,18 +1,20 @@
 "use client";
 import { useMemo, useState } from "react";
-import { CalendarPlus, Clock, Hourglass, Mail, MessageSquarePlus, Send, Sparkles, Trash2 } from "lucide-react";
+import { CalendarPlus, Clock, Hourglass, Mail, Send, Sparkles, Trash2 } from "lucide-react";
 import { useAuth } from "./AuthProvider";
 import { useData } from "./DataProvider";
 import { useToast } from "./Toast";
 import { Avatar, CopyButton, Modal, Segmented, Spinner } from "./ui";
 import { askAI, sendEmail } from "@/lib/api";
-import { canEdit, createTask, updateTask, addNote, deleteTask } from "@/lib/tasks";
+import { canEdit, createTask, updateTask, addNotes, deleteTask } from "@/lib/tasks";
+import WorkNoteForm from "./WorkNoteForm";
 import {
   STATUS, STATUS_ORDER, PRIORITY, PRIORITY_ORDER, toLocalInput, fmtDateTime, fmtMinutes, waitingMinutes,
-  googleCalendarUrl, nameOf, profileName,
+  googleCalendarUrl, nameOf, profileName, waitingName,
 } from "@/lib/format";
 
 const toISO = (local) => (local ? new Date(local).toISOString() : null);
+const OTHER = "__other"; // "waiting on" someone outside TeamFlow (typed name)
 
 export default function TaskModal({ task: initial, defaults = {}, onClose }) {
   const { profile: me } = useAuth();
@@ -34,14 +36,14 @@ export default function TaskModal({ task: initial, defaults = {}, onClose }) {
     status: initial?.status ?? "todo",
     start_at: toLocalInput(initial?.start_at ?? new Date()),
     due_at: toLocalInput(initial?.due_at ?? defaults.due_at),
-    waiting_on: initial?.waiting_on ?? "",
+    waiting_on: initial?.waiting_on ?? (initial?.waiting_on_name ? OTHER : ""),
+    waiting_on_name: initial?.waiting_on_name ?? "",
     waiting_reason: initial?.waiting_reason ?? "",
   }));
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e?.target ? e.target.value : e }));
 
   const [saving, setSaving] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
-  const [note, setNote] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [mail, setMail] = useState(null); // { to, text }
 
@@ -53,7 +55,11 @@ export default function TaskModal({ task: initial, defaults = {}, onClose }) {
   async function save(e) {
     e.preventDefault();
     if (!form.title.trim()) return toast("Please add a title", "error");
-    if (form.status === "waiting" && !form.waiting_on) return toast("Choose who you are waiting on", "error");
+    if (form.status === "waiting") {
+      if (!form.waiting_on) return toast("Choose who you are waiting on", "error");
+      if (form.waiting_on === OTHER && !form.waiting_on_name.trim()) return toast("Type the name of the person or team you are waiting on", "error");
+      if (!form.waiting_reason.trim()) return toast("Add the reason you are waiting — it appears in the daily summary", "error");
+    }
 
     const fields = {
       project: form.project.trim() || null,
@@ -66,7 +72,9 @@ export default function TaskModal({ task: initial, defaults = {}, onClose }) {
       due_at: toISO(form.due_at),
     };
     if (form.status === "waiting") {
-      fields.waiting_on = form.waiting_on;
+      const custom = form.waiting_on === OTHER;
+      fields.waiting_on = custom ? null : form.waiting_on;
+      fields.waiting_on_name = custom ? form.waiting_on_name.trim() : null;
       fields.waiting_reason = form.waiting_reason.trim() || null;
     }
 
@@ -106,11 +114,8 @@ export default function TaskModal({ task: initial, defaults = {}, onClose }) {
     }
   }
 
-  async function postNote(e) {
-    e.preventDefault();
-    if (!note.trim()) return;
-    await addNote(task, note.trim(), me);
-    setNote("");
+  async function postNote(text) {
+    await addNotes(task, text, me);
     toast("Update added — it will appear in today's summary");
   }
 
@@ -145,6 +150,7 @@ export default function TaskModal({ task: initial, defaults = {}, onClose }) {
 
   const others = profiles.filter((p) => p.id !== me.id);
   const projects = [...new Set(tasks.map((t) => t.project).filter(Boolean))].sort();
+  const waitNames = [...new Set(tasks.map((t) => t.waiting_on_name?.trim()).filter(Boolean))].sort();
 
   // Plain-text copy of the task with its progress notes
   const taskAsText = () =>
@@ -152,7 +158,7 @@ export default function TaskModal({ task: initial, defaults = {}, onClose }) {
       `📌 ${task.project ? `${task.project} – ` : ""}${task.title}`,
       `👤 ${nameOf(profiles, task.assigned_to)} · ${STATUS[task.status].label} · ${PRIORITY[task.priority].label}`,
       task.due_at ? `📅 Due ${fmtDateTime(task.due_at)}` : null,
-      task.status === "waiting" ? `⏳ Waiting on ${nameOf(profiles, task.waiting_on)}${task.waiting_reason ? ` (${task.waiting_reason})` : ""}` : null,
+      task.status === "waiting" ? `⏳ Waiting on ${waitingName(profiles, task)}${task.waiting_reason ? ` (${task.waiting_reason})` : ""}` : null,
       task.description ? `\n${task.description}` : null,
       ...(history.some((a) => a.kind === "note")
         ? ["\nUpdates:", ...history.filter((a) => a.kind === "note").reverse().map((a) => `• ${fmtDateTime(a.created_at)} — ${nameOf(profiles, a.user_id)}: ${a.message}`)]
@@ -218,18 +224,46 @@ export default function TaskModal({ task: initial, defaults = {}, onClose }) {
 
             {form.status === "waiting" && (
               <div className="fade-in grid gap-4 rounded-xl border border-amber-400/20 bg-amber-400/5 p-4 sm:grid-cols-2">
-                <div>
+                <div className="space-y-2">
                   <label className="label text-amber-200/80" htmlFor="t-wait">Waiting on</label>
                   <select id="t-wait" className="input" value={form.waiting_on} onChange={set("waiting_on")}>
                     <option value="">Select person…</option>
-                    {profiles.map((p) => (
-                      <option key={p.id} value={p.id}>{profileName(p)}</option>
-                    ))}
+                    <optgroup label="TeamFlow members">
+                      {profiles.map((p) => (
+                        <option key={p.id} value={p.id}>{profileName(p)}{p.role_title ? ` · ${p.role_title}` : ""}</option>
+                      ))}
+                    </optgroup>
+                    <option value={OTHER}>✍️ Someone else (type a name)…</option>
                   </select>
+                  {form.waiting_on === OTHER && (
+                    <>
+                      <input
+                        className="input fade-in"
+                        list="t-wait-names"
+                        value={form.waiting_on_name}
+                        onChange={set("waiting_on_name")}
+                        placeholder="e.g. Nasrudeen Sir, Saudi team, Moyasar support"
+                        maxLength={80}
+                        autoFocus
+                        aria-label="Name of the person or team you are waiting on"
+                      />
+                      <datalist id="t-wait-names">
+                        {waitNames.map((n) => <option key={n} value={n} />)}
+                      </datalist>
+                    </>
+                  )}
                 </div>
                 <div>
-                  <label className="label text-amber-200/80" htmlFor="t-reason">Reason</label>
-                  <input id="t-reason" className="input" value={form.waiting_reason} onChange={set("waiting_reason")} placeholder="e.g. Need approval / files" />
+                  <label className="label text-amber-200/80" htmlFor="t-reason">Reason / what you need</label>
+                  <textarea
+                    id="t-reason"
+                    rows={3}
+                    className="input"
+                    value={form.waiting_reason}
+                    onChange={set("waiting_reason")}
+                    placeholder="e.g. Approval for Azure cloud-storage access before the data pipeline can be connected"
+                  />
+                  <p className="mt-1 text-[10px] text-amber-200/60">Shown in the daily summary, so others know what is blocking the work.</p>
                 </div>
                 {task?.status === "waiting" && (
                   <p className="flex items-center gap-1.5 text-xs text-amber-200 sm:col-span-2">
@@ -310,10 +344,9 @@ export default function TaskModal({ task: initial, defaults = {}, onClose }) {
 
             <div>
               <h3 className="section-title mb-2">Progress updates</h3>
-              <form onSubmit={postNote} className="mb-3 flex gap-2">
-                <input className="input py-2 text-xs" value={note} onChange={(e) => setNote(e.target.value)} placeholder="What did you do on this today?" />
-                <button className="btn-primary btn-sm px-2.5" aria-label="Add update"><MessageSquarePlus className="h-4 w-4" /></button>
-              </form>
+              <div className="mb-3">
+                <WorkNoteForm task={task} onSubmit={postNote} rows={3} submitLabel="Add update" />
+              </div>
               <ol className="max-h-72 space-y-3 overflow-y-auto pr-1">
                 {history.map((a) => (
                   <li key={a.id} className="flex gap-2.5">

@@ -6,9 +6,10 @@ import { useAuth } from "@/components/AuthProvider";
 import { useData } from "@/components/DataProvider";
 import { useToast } from "@/components/Toast";
 import { CopyButton, PageHeader, Spinner } from "@/components/ui";
-import { buildDailySummary } from "@/lib/summary";
+import { buildDailySummary, MIN_ENTRY_CHARS } from "@/lib/summary";
 import { askAI, sendEmail } from "@/lib/api";
-import { addNote } from "@/lib/tasks";
+import { addNotes } from "@/lib/tasks";
+import WorkNoteForm from "@/components/WorkNoteForm";
 import { dayKey, fromDayKey, profileName } from "@/lib/format";
 
 export default function SummaryPage() {
@@ -24,7 +25,6 @@ export default function SummaryPage() {
   const [mailTo, setMailTo] = useState("");
   const [sending, setSending] = useState(false);
   const [noteTask, setNoteTask] = useState("");
-  const [note, setNote] = useState("");
 
   useEffect(() => {
     if (me?.id && who === "team") {
@@ -80,14 +80,10 @@ export default function SummaryPage() {
   }
 
   // Each line becomes its own sentence under the task's project
-  async function postNote(e) {
-    e.preventDefault();
+  async function postNote(text) {
     const task = tasks.find((t) => t.id === noteTask);
-    const lines = note.split("\n").map((l) => l.replace(/^[\s•\-*]+/, "").trim()).filter(Boolean);
-    if (!task || !lines.length) return;
-    for (const line of lines) await addNote(task, line, me);
-    setNote("");
-    toast(lines.length > 1 ? `${lines.length} lines added to the update` : "Added to the update");
+    const count = await addNotes(task, text, me);
+    toast(count > 1 ? `${count} lines added to the update` : "Added to the update");
   }
 
   // My tasks grouped by project for the picker (done today still allowed, to log final work)
@@ -148,10 +144,11 @@ export default function SummaryPage() {
         </section>
 
         <aside className="space-y-4">
-          <form onSubmit={postNote} className="glass space-y-3 p-4">
+          <div className="glass space-y-3 p-4">
             <h2 className="section-title flex items-center gap-2"><MessageSquarePlus className="h-4 w-4 text-violet-300" /> Log today&apos;s work</h2>
             <p className="text-xs text-slate-400">
-              Pick the task, write what you did. Each line becomes one sentence under <span className="text-slate-200">🔹 Project</span> in the update.
+              Pick the task and describe what you did in at least {MIN_ENTRY_CHARS} characters. Each line becomes one sentence under{" "}
+              <span className="text-slate-200">🔹 Project</span> in the update.
             </p>
             <select className="input" value={noteTask} onChange={(e) => setNoteTask(e.target.value)} required aria-label="Task">
               <option value="">Choose a task…</option>
@@ -163,21 +160,17 @@ export default function SummaryPage() {
                   </optgroup>
                 ))}
             </select>
-            <textarea
-              rows={4}
-              className="input"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder={"Reviewed the new Azure server.\nEvaluated the setup for PostgreSQL integration."}
-              required
+            <WorkNoteForm
+              task={tasks.find((t) => t.id === noteTask)}
+              onSubmit={postNote}
+              rows={5}
+              extraButton={
+                <button type="button" onClick={() => newTask()} className="btn-ghost" title="Task not listed? Create it">
+                  + Task
+                </button>
+              }
             />
-            <div className="flex gap-2">
-              <button className="btn-primary flex-1">Add to update</button>
-              <button type="button" onClick={() => newTask()} className="btn-ghost" title="Task not listed? Create it">
-                + Task
-              </button>
-            </div>
-          </form>
+          </div>
 
           <div className="glass space-y-3 p-4">
             <h2 className="section-title flex items-center gap-2"><Send className="h-4 w-4 text-sky-300" /> Email this summary</h2>

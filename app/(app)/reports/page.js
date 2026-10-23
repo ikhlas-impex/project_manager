@@ -11,7 +11,7 @@ import ProjectTimeline from "@/components/ProjectTimeline";
 
 const fmtShort = (d) => new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 import { askAI, sendEmail } from "@/lib/api";
-import { PRIORITY, PRIORITY_ORDER, STATUS, STATUS_ORDER, fmtMinutes, fromDayKey, nameOf, profileName } from "@/lib/format";
+import { PRIORITY, PRIORITY_ORDER, STATUS, STATUS_ORDER, fmtMinutes, fromDayKey, nameOf, profileName, waitingName } from "@/lib/format";
 
 export default function ReportsPage() {
   const { profile: me } = useAuth();
@@ -63,7 +63,7 @@ export default function ReportsPage() {
       const slim = r.activeTasks.slice(0, 80).map((t) => ({
         title: t.title, status: t.status, priority: t.priority, assignee: nameOf(profiles, t.assigned_to),
         due: t.due_at, completed: t.completed_at, waitingMinutes: t.waiting_total_minutes,
-        waitingOn: t.waiting_on ? nameOf(profiles, t.waiting_on) : undefined, waitingReason: t.waiting_reason || undefined,
+        waitingOn: t.status === "waiting" ? waitingName(profiles, t) : undefined, waitingReason: t.waiting_reason || undefined,
       }));
       setAi(await askAI("report", { period: { week: "the week", month: "the month", year: "the year" }[kind] ? `${{ week: "the week", month: "the month", year: "the year" }[kind]} ${label}` : label, stats, tasks: slim }));
     } catch (err) {
